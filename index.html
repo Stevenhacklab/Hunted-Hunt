@@ -1,1 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Halloween Haunted Hunt</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #222; }
+    canvas { display: block; margin: 0 auto; background: #4a7930; }
+    #ui {
+      position: absolute;
+      top: 10px; right: 10px;
+      font-family: sans-serif;
+      font-size: 20px;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #ui img { width: 24px; height: 24px; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <img src="https://i.ibb.co/RTrBDhB4/Halloween-Candy-Corn-PNG-Clip-Art-Image.png">
+    <span id="score">0</span>
+  </div>
+  <canvas id="game" width="800" height="600"></canvas>
 
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    // Game world
+    const world = { width: 2000, height: 2000 };
+
+    // Player
+    const player = {
+      x: world.width/2,
+      y: world.height/2,
+      size: 40,
+      speed: 4
+    };
+
+    let keys = {};
+
+    // Store positions (center of map)
+    const itemStore = { x: world.width/2 - 100, y: world.height/2, size: 50 };
+    const upgradeStore = { x: world.width/2 + 100, y: world.height/2, size: 50 };
+
+    // Camera
+    function getCamera() {
+      return {
+        x: player.x - canvas.width/2,
+        y: player.y - canvas.height/2
+      };
+    }
+
+    // Movement controls
+    window.addEventListener("keydown", e => keys[e.key] = true);
+    window.addEventListener("keyup", e => keys[e.key] = false);
+
+    function update() {
+      if (keys["ArrowUp"] || keys["w"]) player.y -= player.speed;
+      if (keys["ArrowDown"] || keys["s"]) player.y += player.speed;
+      if (keys["ArrowLeft"] || keys["a"]) player.x -= player.speed;
+      if (keys["ArrowRight"] || keys["d"]) player.x += player.speed;
+
+      // Stay inside world bounds
+      player.x = Math.max(0, Math.min(world.width, player.x));
+      player.y = Math.max(0, Math.min(world.height, player.y));
+    }
+
+    function draw() {
+      const cam = getCamera();
+
+      // Background grid
+      ctx.fillStyle = "#4a7930";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.strokeStyle = "#355623";
+      for (let x = -cam.x % 100; x < canvas.width; x += 100) {
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+      }
+      for (let y = -cam.y % 100; y < canvas.height; y += 100) {
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+      }
+
+      // Stores
+      ctx.fillStyle = "#f5e6a0";
+      ctx.fillRect(itemStore.x - cam.x - 25, itemStore.y - cam.y - 25, itemStore.size, itemStore.size);
+      ctx.fillRect(upgradeStore.x - cam.x - 25, upgradeStore.y - cam.y - 25, upgradeStore.size, upgradeStore.size);
+
+      ctx.fillStyle = "black";
+      ctx.fillText("Item", itemStore.x - cam.x - 15, itemStore.y - cam.y);
+      ctx.fillText("Upgrade", upgradeStore.x - cam.x - 25, upgradeStore.y - cam.y);
+
+      // Player
+      ctx.fillStyle = "orange";
+      ctx.beginPath();
+      ctx.arc(player.x - cam.x, player.y - cam.y, player.size/2, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Halloween Haunted Hunt</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #222; }
+    canvas { display: block; margin: 0 auto; background: #4a7930; }
+    #ui {
+      position: absolute;
+      top: 10px; right: 10px;
+      font-family: sans-serif;
+      font-size: 20px;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #ui img { width: 24px; height: 24px; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <img src="https://i.ibb.co/RTrBDhB4/Halloween-Candy-Corn-PNG-Clip-Art-Image.png">
+    <span id="score">0</span>
+  </div>
+  <canvas id="game" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    // Game world
+    const world = { width: 2000, height: 2000 };
+
+    // Player
+    const player = {
+      x: world.width/2,
+      y: world.height/2,
+      size: 40,
+      speed: 4
+    };
+
+    let keys = {};
+
+    // Store positions (center of map)
+    const itemStore = { x: world.width/2 - 100, y: world.height/2, size: 50 };
+    const upgradeStore = { x: world.width/2 + 100, y: world.height/2, size: 50 };
+
+    // Camera
+    function getCamera() {
+      return {
+        x: player.x - canvas.width/2,
+        y: player.y - canvas.height/2
+      };
+    }
+
+    // Movement controls
+    window.addEventListener("keydown", e => keys[e.key] = true);
+    window.addEventListener("keyup", e => keys[e.key] = false);
+
+    function update() {
+      if (keys["ArrowUp"] || keys["w"]) player.y -= player.speed;
+      if (keys["ArrowDown"] || keys["s"]) player.y += player.speed;
+      if (keys["ArrowLeft"] || keys["a"]) player.x -= player.speed;
+      if (keys["ArrowRight"] || keys["d"]) player.x += player.speed;
+
+      // Stay inside world bounds
+      player.x = Math.max(0, Math.min(world.width, player.x));
+      player.y = Math.max(0, Math.min(world.height, player.y));
+    }
+
+    function draw() {
+      const cam = getCamera();
+
+      // Background grid
+      ctx.fillStyle = "#4a7930";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.strokeStyle = "#355623";
+      for (let x = -cam.x % 100; x < canvas.width; x += 100) {
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+      }
+      for (let y = -cam.y % 100; y < canvas.height; y += 100) {
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+      }
+
+      // Stores
+      ctx.fillStyle = "#f5e6a0";
+      ctx.fillRect(itemStore.x - cam.x - 25, itemStore.y - cam.y - 25, itemStore.size, itemStore.size);
+      ctx.fillRect(upgradeStore.x - cam.x - 25, upgradeStore.y - cam.y - 25, upgradeStore.size, upgradeStore.size);
+
+      ctx.fillStyle = "black";
+      ctx.fillText("Item", itemStore.x - cam.x - 15, itemStore.y - cam.y);
+      ctx.fillText("Upgrade", upgradeStore.x - cam.x - 25, upgradeStore.y - cam.y);
+
+      // Player
+      ctx.fillStyle = "orange";
+      ctx.beginPath();
+      ctx.arc(player.x - cam.x, player.y - cam.y, player.size/2, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>
