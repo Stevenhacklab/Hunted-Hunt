@@ -1,658 +1,249 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Halloween Haunted Hunt — Prototype</title>
-<style>
-  :root{
-    --ui-bg: rgba(0,0,0,0.6);
-    --panel: rgba(255,255,255,0.95);
-  }
-  html,body{height:100%;margin:0;font-family:Inter,Segoe UI,system-ui,Arial}
-  body{background:#111;color:#fff;overflow:hidden}
-  canvas{display:block;background:#273a19; /* grass-like */ width:100vw;height:100vh}
-  /* Top UI */
-  #topbar{
-    position:fixed; right:14px; top:12px; display:flex; align-items:center; gap:10px;
-    background:var(--ui-bg); padding:6px 10px; border-radius:10px;
-  }
-  #topbar img{width:28px;height:28px}
-  #topbar .score{font-weight:700;font-size:20px}
-  /* Top-center spawn thumbnail */
-  #targetThumb{
-    position:fixed; left:50%; transform:translateX(-50%); top:8px;
-    background:var(--ui-bg); padding:6px 10px; border-radius:10px; display:flex; align-items:center; gap:8px;
-    min-width:160px; justify-content:center;
-    visibility:hidden;
-  }
-  #targetThumb img{width:36px;height:36px;object-fit:contain}
-  /* Bottom controls */
-  #controls{position:fixed; left:0; bottom:0; right:0; pointer-events:none;}
-  /* joystick area */
-  #joystick{
-    position:absolute; left:14px; bottom:14px; width:140px; height:140px; border-radius:12px;
-    background:rgba(255,255,255,0.06); pointer-events:auto;
-    display:flex; align-items:center; justify-content:center;
-  }
-  #joypad{
-    width:70px;height:70px;border-radius:50%; background:rgba(255,255,255,0.12); position:relative; touch-action:none;
-  }
-  /* spawn button */
-  #spawnBtn{
-    position:absolute; right:14px; bottom:14px; pointer-events:auto;
-    background:linear-gradient(180deg,#ff8a00,#d65a00); border:none; color:#111;
-    padding:12px 16px;border-radius:12px;font-weight:700; box-shadow:0 6px 12px rgba(0,0,0,0.4);
-  }
-  /* bottom action bar for purchased items */
-  #actionBar{
-    position:fixed; left:50%; transform:translateX(-50%); bottom:18px; pointer-events:auto;
-    background:var(--ui-bg); padding:6px;border-radius:12px; display:flex; gap:10px; align-items:center;
-  }
-  .actionBtn{background:#fff;border-radius:8px;padding:6px 8px;display:flex;gap:8px;align-items:center;cursor:pointer}
-  .actionBtn.disabled{opacity:0.35;pointer-events:none}
-  .cooldownOverlay{position:absolute;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;border-radius:8px;font-weight:700}
-  /* Store modal */
-  .modal{
-    position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:320px; max-width:90%; background:var(--panel); color:#111;
-    border-radius:12px; padding:12px; display:none; z-index:40;
-  }
-  .modal h3{margin:0 0 8px 0}
-  .storeItem{display:flex;gap:10px;align-items:center;padding:8px;border-radius:8px;background:#fff8; margin-bottom:8px}
-  .storeItem img{width:48px;height:48px;object-fit:contain}
-  .storeItem .right{flex:1}
-  .storeItem button{padding:6px 8px;border-radius:8px;border:none;background:#2b2b2b;color:white;cursor:pointer}
-  .storeItem button:disabled{opacity:0.4;cursor:default}
-  .closeBtn{position:absolute; right:8px; top:8px; cursor:pointer; background:#ff6b6b;padding:6px;border-radius:6px;color:white;border:none}
-  /* store icons on map (small) */
-  .storeIcon{width:46px;height:46px;border-radius:8px;background:#f5e6a0;display:flex;align-items:center;justify-content:center;color:#111;font-weight:700}
-  /* small helper */
-  .muted{opacity:0.7}
-</style>
+  <meta charset="UTF-8" />
+  <title>Halloween Haunted Hunt</title>
+  <style>
+    body { margin:0; overflow:hidden; background:black; }
+    canvas { display:block; background:#222; }
+
+    /* Store menus */
+    .store {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: #333;
+      border: 4px solid orange;
+      padding: 20px;
+      width: 300px;
+      display: none;
+      color: white;
+      font-family: sans-serif;
+    }
+    .store h2 { margin-top:0; }
+    .store button { margin:5px; }
+    .close-btn {
+      position: absolute;
+      top: 5px; right: 5px;
+      background: red; color: white; border:none; cursor:pointer;
+      font-size: 16px; padding: 2px 6px;
+    }
+
+    /* HUD buttons */
+    #hud {
+      position: absolute;
+      bottom: 10px;
+      width: 100%;
+      text-align: center;
+    }
+    #hud button {
+      margin: 0 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #locatorBtn { background: purple; color:white; }
+    #teleportBtn { background: green; color:white; }
+    #spawnBtn { background: blue; color:white; }
+  </style>
 </head>
 <body>
-  <canvas id="game"></canvas>
+<canvas id="game" width="800" height="600"></canvas>
 
-  <!-- Top center thumbnail of current target -->
-  <div id="targetThumb"><span class="muted">Find:</span><img id="targetImg" src=""><div id="targetName"></div></div>
-
-  <!-- Top right scoreboard -->
-  <div id="topbar"><img src="https://i.ibb.co/RTrBDhB4/Halloween-Candy-Corn-PNG-Clip-Art-Image.png" alt="candy"><div class="score" id="score">0</div></div>
-
-  <!-- Controls -->
-  <div id="controls">
-    <div id="joystick"><div id="joypad"></div></div>
-    <div id="actionBar" aria-hidden="false"></div>
-    <button id="spawnBtn">Spawn (center)</button>
+<!-- Item Store -->
+<div id="itemStore" class="store">
+  <button class="close-btn" onclick="closeStore('itemStore')">X</button>
+  <h2>Item Store</h2>
+  <div>
+    <img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png" width="32"> Item Locator - 5 🍬
+    <button onclick="buyItem('locator')">Buy</button>
   </div>
+  <div>
+    <img src="https://freesvg.org/img/teleport.png" width="32"> Teleporter - 20 🍬
+    <button onclick="buyItem('teleport')">Buy</button>
+  </div>
+</div>
 
-  <!-- Modals -->
-  <div id="itemStore" class="modal">
-    <button class="closeBtn" onclick="closeModal('itemStore')">X</button>
-    <h3>Item Store</h3>
-    <div id="itemStoreList"></div>
-  </div>
-  <div id="upgradeStore" class="modal">
-    <button class="closeBtn" onclick="closeModal('upgradeStore')">X</button>
-    <h3>Upgrade Store</h3>
-    <div id="upgradeStoreList"></div>
-  </div>
+<!-- Upgrade Store -->
+<div id="upgradeStore" class="store">
+  <button class="close-btn" onclick="closeStore('upgradeStore')">X</button>
+  <h2>Upgrade Store</h2>
+  <p>Locator Upgrade - 8 🍬</p>
+  <button onclick="buyUpgrade('locator')">Buy</button>
+  <p>Teleporter Upgrade - 8 🍬</p>
+  <button onclick="buyUpgrade('teleport')">Buy</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <button id="locatorBtn" onclick="useLocator()">Locator</button>
+  <button id="teleportBtn" onclick="useTeleporter()">Teleporter</button>
+  <button id="spawnBtn" onclick="spawnCenter()">Spawn</button>
+</div>
 
 <script>
-/* -------------------------
-  Prototype: Halloween Haunted Hunt
-  Single-file prototype for GitHub Pages
-  ------------------------- */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-/* --------- Config & assets --------- */
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+// World
+const mapSize = 2000;
+let player = {x: mapSize/2, y: mapSize/2, size:40, speed:4};
+let candyCorn = 0;
 
-function fitCanvas(){
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-fitCanvas();
-window.addEventListener('resize', fitCanvas);
+// Current item to find
+let targetItem = {x:500, y:500, size:40};
 
-const AVATARS = [
-  "https://i.ibb.co/Fq4c4DFn/966891-3652a.gif",
-  "https://i.ibb.co/DDxBbjDb/pngtree-halloween-pumpkin-with-candies-pumpkin-trick-or-treat-bag-halloween-pumpkin-png-image-103243.png",
-  "https://i.ibb.co/X1yfLRm/pngtree-happy-candy-corn-character-png-image-13841752.png",
-  "https://i.ibb.co/K3SYj33/IMG-0212.png",
-  "https://i.ibb.co/RTpTfb4Z/IMG-0213.gif",
-  "https://i.ibb.co/zWkTcMVqS/mumy-paklet.png", // corrected earlier path
-  "https://i.ibb.co/Xf4p0fw6/200w.gif",
-  "https://i.ibb.co/N6rmPVqS/giphy.webp"
-];
+// Camera
+let camX=0, camY=0;
 
-const ITEM_IMAGES = [
-  "https://i.ibb.co/Fq4c4DFn/966891-3652a.gif",
-  "https://i.ibb.co/DDxBbjDb/pngtree-halloween-pumpkin-with-candies-pumpkin-trick-or-treat-bag-halloween-pumpkin-png-image-103243.png",
-  "https://i.ibb.co/X1yfLRm/pngtree-happy-candy-corn-character-png-image-13841752.png",
-  "https://i.ibb.co/K3SYj33/IMG-0212.png",
-  "https://i.ibb.co/RTpTfb4Z/IMG-0213.gif",
-  "https://i.ibb.co/zWkTcMVqS/mumy-paklet.png",
-  "https://i.ibb.co/Xf4p0fw6/200w.gif",
-  "https://i.ibb.co/N6rmPVqS/giphy.webp"
-];
+// Store triggers
+const itemStorePos = {x: mapSize/2 - 100, y: mapSize/2};
+const upgradeStorePos = {x: mapSize/2 + 100, y: mapSize/2};
 
-/* ---------- World & player ---------- */
-const world = { width: 3000, height: 2200 }; // very big map
-let player = {
-  x: world.width/2,
-  y: world.height/2,
-  w: 48, h: 48,
-  speed: 3.6,
-  img: null
-};
+// Inventory
+let hasLocator=false, hasTeleporter=false;
+let locatorCooldown=0, teleportCooldown=0;
 
-/* spawn center store icons */
-const CENTER = { x: world.width/2, y: world.height/2 };
-const itemStorePos = { x: CENTER.x - 120, y: CENTER.y, w:64, h:64 };
-const upgradeStorePos = { x: CENTER.x + 120, y: CENTER.y, w:64, h:64 };
+// Keyboard
+let keys={};
+window.addEventListener("keydown",e=>keys[e.key]=true);
+window.addEventListener("keyup",e=>keys[e.key]=false);
 
-/* camera */
-function getCam(){ return { x: player.x - canvas.width/2, y: player.y - canvas.height/2 }; }
-
-/* input */
-let keys = {};
-window.addEventListener('keydown', e=> keys[e.key]=true);
-window.addEventListener('keyup', e=> keys[e.key]=false);
-
-/* joystick */
-const joypad = document.getElementById('joypad');
-let joyState = {active:false, x:0, y:0}; // relative -1..1
-(function initJoystick(){
-  const area = document.getElementById('joystick');
-  let start = null;
-  function pointerDown(e){
-    joyState.active = true;
-    start = getPointer(e);
-  }
-  function pointerUp(){ joyState.active = false; joyState.x=0; joyState.y=0; start=null; }
-  function pointerMove(e){
-    if(!start || !joyState.active) return;
-    const cur = getPointer(e);
-    const dx = cur.x - start.x;
-    const dy = cur.y - start.y;
-    const max = 40;
-    const rx = Math.max(-1,Math.min(1,dx/max));
-    const ry = Math.max(-1,Math.min(1,dy/max));
-    joyState.x = rx; joyState.y = ry;
-    joypad.style.transform = `translate(${rx*32}px,${ry*32}px)`;
-  }
-  function getPointer(e){
-    if(e.touches && e.touches[0]) return {x:e.touches[0].clientX, y:e.touches[0].clientY};
-    return {x:e.clientX, y:e.clientY};
-  }
-  area.addEventListener('pointerdown', pointerDown);
-  window.addEventListener('pointerup', pointerUp);
-  window.addEventListener('pointermove', pointerMove);
-})();
-
-/* spawn button (teleport to center) */
-document.getElementById('spawnBtn').addEventListener('click', ()=> {
-  player.x = CENTER.x; player.y = CENTER.y;
-});
-
-/* action bar items (populated after buy) */
-const actionBar = document.getElementById('actionBar');
-
-/* --------- Game items & spawning ---------- */
-let spawnedItem = null; // {x,y,img,name,id}
-const spawnInterval = 6000; // ms spawn rate
-let lastSpawn = 0;
-
-/* show top thumbnail when spawn */
-const targetThumb = document.getElementById('targetThumb');
-const targetImg = document.getElementById('targetImg');
-const targetName = document.getElementById('targetName');
-
-function showTargetThumb(imgUrl, name){
-  targetImg.src = imgUrl;
-  targetName.textContent = name||"";
-  targetThumb.style.visibility = "visible";
-}
-
-/* spawn logic */
-function spawnRandomItem(){
-  // only one item active at a time in this prototype
-  if(spawnedItem) return;
-  const margin = 120;
-  const x = Math.random()*(world.width - margin*2)+margin;
-  const y = Math.random()*(world.height - margin*2)+margin;
-  const idx = Math.floor(Math.random()*ITEM_IMAGES.length);
-  spawnedItem = { x,y, img: ITEM_IMAGES[idx], id: Date.now() };
-  showTargetThumb(spawnedItem.img, "Find this!");
-}
-
-/* pickup detection */
-function distance(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
-
-/* --------- Store & economy state (persisted) --------- */
-const STORAGE_KEY = "haunted_hunt_state_v1";
-let state = {
-  candy: 0,
-  purchased: { locator:false, teleport:false },
-  upgrades: { locator:0, teleport:0 }, // 0..3 (3 means MAX)
-  cooldowns: { locatorReady: 0, teleportReady: 0 }
-};
-/* load */
-try{
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if(raw) Object.assign(state, JSON.parse(raw));
-}catch(e){ console.warn("state load failed",e); }
-updateScoreDisplay();
-
-/* persist */
-function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-
-/* --------- Store definitions --------- */
-const ITEM_STORE_DEFS = [
-  { id:'locator', name:'Item Locator', cost:5, img:'https://i.ibb.co/bgmg3RpW/IMG-0240.png', desc:'Reveal the item with an arrow for a short time.'},
-  { id:'teleport', name:'Teleport', cost:20, img:'https://freesvg.org/img/teleport.png', desc:'Teleport directly to the item (if present).'}
-];
-const UPGRADE_COST = 8;
-/* Locator base: duration 2s, cooldown 5s. upgrades: 
-   Upgrade 1 -> 3s/4s, Upgrade 2 -> 4s/3s, Upgrade 3 -> 5s/2s (then MAX)
-*/
-function locatorParams(upg){
-  if(upg<=0) return {dur:2, cd:5};
-  if(upg===1) return {dur:3, cd:4};
-  if(upg===2) return {dur:4, cd:3};
-  return {dur:5, cd:2};
-}
-/* Teleport base: 30s, upgrades: 25, 20, 15 */
-function teleportCooldownFor(upg){
-  if(upg<=0) return 30;
-  if(upg===1) return 25;
-  if(upg===2) return 20;
-  return 15;
-}
-
-/* --------- UI: store rendering & buy handlers --------- */
-function openModal(id){ document.getElementById(id).style.display='block'; }
-function closeModal(id){ document.getElementById(id).style.display='none'; renderActionBar(); saveState(); updateScoreDisplay(); }
-
-function renderItemStore(){
-  const list = document.getElementById('itemStoreList'); list.innerHTML='';
-  ITEM_STORE_DEFS.forEach(def=>{
-    const el = document.createElement('div'); el.className='storeItem';
-    el.innerHTML = `<img src="${def.img}"><div class="right"><div style="font-weight:700">${def.name}</div><div style="font-size:12px;color:#333">${def.desc}</div><div style="font-size:13px;margin-top:6px;color:#222">${def.cost} Candy</div></div><div><button id="buy_${def.id}">Buy</button></div>`;
-    list.appendChild(el);
-    const btn = el.querySelector('button');
-    if(state.purchased[def.id]){ btn.textContent='Owned'; btn.disabled=true; }
-    else if(state.candy < def.cost) { btn.disabled=true; }
-    btn.addEventListener('click', ()=>{
-      if(state.candy >= def.cost && !state.purchased[def.id]){
-        state.candy -= def.cost;
-        state.purchased[def.id]=true;
-        if(def.id==='locator') state.cooldowns.locatorReady = 0; // ensure ready
-        if(def.id==='teleport') state.cooldowns.teleportReady = 0;
-        saveState(); renderItemStore(); renderActionBar(); updateScoreDisplay();
-      }
-    });
-  });
-}
-function renderUpgradeStore(){
-  const list = document.getElementById('upgradeStoreList'); list.innerHTML='';
-  // Locator upgrades (3 tiers)
-  const locTier = state.upgrades.locator;
-  for(let t=1;t<=3;t++){
-    const name = `Locator Upg ${t}`;
-    const cost = UPGRADE_COST;
-    const owned = locTier >= t;
-    const el = document.createElement('div'); el.className='storeItem';
-    el.innerHTML = `<img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png"><div class="right"><div style="font-weight:700">${name}</div><div style="font-size:12px;color:#333">Arrow duration & cooldown improvement</div><div style="font-size:13px;margin-top:6px;color:#222">${cost} Candy</div></div><div><button id="upg_loc_${t}">${owned? (t===3?'MAX':'Owned') : 'Buy'}</button></div>`;
-    list.appendChild(el);
-    const btn = el.querySelector('button');
-    if(owned) btn.disabled=true;
-    else if(state.candy < cost) btn.disabled=true;
-    btn.addEventListener('click', ()=>{
-      if(state.candy >= cost && !owned){
-        state.candy -= cost;
-        state.upgrades.locator = Math.max(state.upgrades.locator, t);
-        saveState(); renderUpgradeStore(); renderActionBar(); updateScoreDisplay();
-      }
-    });
-  }
-  // Teleport upgrades
-  const tpTier = state.upgrades.teleport;
-  for(let t=1;t<=3;t++){
-    const name = `Teleport Upg ${t}`;
-    const cost = UPGRADE_COST;
-    const owned = tpTier >= t;
-    const el = document.createElement('div'); el.className='storeItem';
-    el.innerHTML = `<img src="https://freesvg.org/img/teleport.png"><div class="right"><div style="font-weight:700">${name}</div><div style="font-size:12px;color:#333">Reduce teleport cooldown</div><div style="font-size:13px;margin-top:6px;color:#222">${cost} Candy</div></div><div><button id="upg_tp_${t}">${owned? (t===3?'MAX':'Owned') : 'Buy'}</button></div>`;
-    list.appendChild(el);
-    const btn = el.querySelector('button');
-    if(owned) btn.disabled=true;
-    else if(state.candy < cost) btn.disabled=true;
-    btn.addEventListener('click', ()=>{
-      if(state.candy >= cost && !owned){
-        state.candy -= cost;
-        state.upgrades.teleport = Math.max(state.upgrades.teleport, t);
-        saveState(); renderUpgradeStore(); renderActionBar(); updateScoreDisplay();
-      }
-    });
-  }
-}
-
-/* open store when touching store icon */
-function tryOpenStores(){
-  // if near item store or upgrade store open modals
-  if(distance(player, itemStorePos) < 80) { renderItemStore(); openModal('itemStore'); }
-  else if(distance(player, upgradeStorePos) < 80) { renderUpgradeStore(); openModal('upgradeStore'); }
-}
-
-/* -------- action bar (bought items appear here) -------- */
-function renderActionBar(){
-  actionBar.innerHTML = '';
-  // locator
-  if(state.purchased.locator){
-    const node = document.createElement('div'); node.className='actionBtn'; node.id='act_locator';
-    node.style.position='relative';
-    node.innerHTML = `<img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png" style="width:34px;height:34px"><div style="font-weight:700">Locator</div>`;
-    // cooldown overlay if not ready
-    const cd = state.cooldowns.locatorReady - Date.now();
-    if(cd > 0){
-      const overlay = document.createElement('div'); overlay.className='cooldownOverlay'; overlay.textContent = `${Math.ceil(cd/1000)}s`;
-      node.appendChild(overlay);
-    }
-    node.addEventListener('click', ()=> useLocator());
-    actionBar.appendChild(node);
-  }
-  // teleport
-  if(state.purchased.teleport){
-    const node = document.createElement('div'); node.className='actionBtn'; node.id='act_teleport';
-    node.style.position='relative';
-    node.innerHTML = `<img src="https://freesvg.org/img/teleport.png" style="width:34px;height:34px"><div style="font-weight:700">Teleport</div>`;
-    const cd = state.cooldowns.teleportReady - Date.now();
-    if(cd > 0){
-      const overlay = document.createElement('div'); overlay.className='cooldownOverlay'; overlay.textContent = `${Math.ceil(cd/1000)}s`;
-      node.appendChild(overlay);
-      node.classList.add('disabled');
-    }
-    node.addEventListener('click', ()=> useTeleport());
-    actionBar.appendChild(node);
-  }
-}
-
-/* use locator: show arrow for duration; set cooldown */
-let arrowActiveUntil = 0;
-function useLocator(){
-  if(!state.purchased.locator) return;
-  const now = Date.now();
-  if((state.cooldowns.locatorReady||0) > now) return; // still cooling
-  if(!spawnedItem) return; // nothing to find
-  const upg = state.upgrades.locator || 0;
-  const p = locatorParams(upg);
-  // show arrow for p.dur seconds
-  arrowActiveUntil = Date.now() + p.dur*1000;
-  // set cooldown next allowed use at now + p.cd
-  state.cooldowns.locatorReady = Date.now() + p.cd*1000;
-  saveState();
-  renderActionBar();
-}
-
-/* use teleport: teleport to spawned item; set cooldown */
-function useTeleport(){
-  if(!state.purchased.teleport) return;
-  const now = Date.now();
-  if((state.cooldowns.teleportReady||0) > now) return;
-  if(!spawnedItem) return;
-  // teleport
-  player.x = spawnedItem.x;
-  player.y = spawnedItem.y;
-  // set cooldown
-  const upg = state.upgrades.teleport || 0;
-  const cd = teleportCooldownFor(upg);
-  state.cooldowns.teleportReady = Date.now() + cd*1000;
-  saveState();
-  renderActionBar();
-}
-
-/* --------- Avatar randomization & preload --------- */
-function pickAvatar(){
-  const idx = Math.floor(Math.random()*AVATARS.length);
-  const img = new Image();
-  img.src = AVATARS[idx];
-  img.onload = ()=> { /* ok */ };
-  player.img = img;
-}
-pickAvatar();
-
-/* --------- Score update --------- */
-function updateScoreDisplay(){
-  document.getElementById('score').textContent = state.candy;
-}
-
-/* --------- Game loop & draw --------- */
-let lastTime = 0;
-function loop(ts){
-  const dt = ts - lastTime; lastTime = ts;
-  // Movement via keyboard or joystick
-  let vx=0, vy=0;
-  if(keys["ArrowUp"]||keys["w"]) vy -= 1;
-  if(keys["ArrowDown"]||keys["s"]) vy += 1;
-  if(keys["ArrowLeft"]||keys["a"]) vx -= 1;
-  if(keys["ArrowRight"]||keys["d"]) vx += 1;
-  // joystick
-  if(joyState.active){
-    vx += joyState.x;
-    vy += joyState.y;
-  }
-  // normalize
-  if(vx!==0 || vy!==0){
-    const mag = Math.hypot(vx,vy) || 1;
-    vx = vx/mag; vy = vy/mag;
-    player.x += vx * player.speed * (dt/16);
-    player.y += vy * player.speed * (dt/16);
-  }
-
-  // clamp to world
-  player.x = Math.max(20,Math.min(world.width-20, player.x));
-  player.y = Math.max(20,Math.min(world.height-20, player.y));
-
-  // spawn items periodically
-  if(Date.now() - lastSpawn > spawnInterval){
-    spawnRandomItem();
-    lastSpawn = Date.now();
-  }
-
-  // pickup check
-  if(spawnedItem && distance(player, spawnedItem) < 36){
-    state.candy += 5;
-    // remove item
-    spawnedItem = null;
-    targetThumb.style.visibility = 'hidden';
-    saveState();
-    updateScoreDisplay();
-    renderActionBar();
-  }
-
-  // store interaction if near center icons
-  if(distance(player, itemStorePos) < 52 || distance(player, upgradeStorePos) < 52){
-    // show tiny prompt (drawn on canvas)
-  }
-
-  // draw frame
+function gameLoop(){
+  update();
   draw();
-
-  // keep updating cooldown overlays in UI
-  renderActionBar();
-
-  requestAnimationFrame(loop);
+  requestAnimationFrame(gameLoop);
 }
-requestAnimationFrame(loop);
 
-/* -------- draw function ---------- */
+function update(){
+  // Move
+  if(keys["ArrowUp"]) player.y-=player.speed;
+  if(keys["ArrowDown"]) player.y+=player.speed;
+  if(keys["ArrowLeft"]) player.x-=player.speed;
+  if(keys["ArrowRight"]) player.x+=player.speed;
+
+  // Camera follows
+  camX = player.x - canvas.width/2;
+  camY = player.y - canvas.height/2;
+
+  // Collision with item
+  if(Math.abs(player.x-targetItem.x)<40 && Math.abs(player.y-targetItem.y)<40){
+    candyCorn+=5;
+    spawnNewItem();
+  }
+
+  // Touch stores
+  if(Math.abs(player.x-itemStorePos.x)<50 && Math.abs(player.y-itemStorePos.y)<50){
+    document.getElementById("itemStore").style.display="block";
+  }
+  if(Math.abs(player.x-upgradeStorePos.x)<50 && Math.abs(player.y-upgradeStorePos.y)<50){
+    document.getElementById("upgradeStore").style.display="block";
+  }
+
+  if(locatorCooldown>0) locatorCooldown--;
+  if(teleportCooldown>0) teleportCooldown--;
+}
+
 function draw(){
-  const cam = getCam();
-  // clear
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  // background tiles
-  ctx.fillStyle = "#1f3b17";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.save();
-  ctx.translate(-cam.x, -cam.y);
+  ctx.translate(-camX, -camY);
 
-  // draw ground grid for orientation
-  ctx.strokeStyle = "rgba(0,0,0,0.12)"; ctx.lineWidth = 1;
-  for(let gx = 0; gx < world.width; gx += 120){
-    ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,world.height); ctx.stroke();
-  }
-  for(let gy = 0; gy < world.height; gy += 120){
-    ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(world.width,gy); ctx.stroke();
-  }
+  // Map background
+  ctx.fillStyle="darkgreen";
+  ctx.fillRect(0,0,mapSize,mapSize);
 
-  // draw stores at center (icons)
-  // upgrade store
-  ctx.fillStyle = "#f5e6a0";
-  ctx.fillRect(upgradeStorePos.x - 32, upgradeStorePos.y - 32, 64,64);
-  ctx.fillStyle = "#222"; ctx.font = "bold 14px sans-serif";
-  ctx.fillText("UPG", upgradeStorePos.x - 18, upgradeStorePos.y + 5);
-  // item store
-  ctx.fillStyle = "#f5e6a0";
-  ctx.fillRect(itemStorePos.x - 32, itemStorePos.y - 32, 64,64);
-  ctx.fillStyle = "#222"; ctx.fillText("ITEM", itemStorePos.x - 20, itemStorePos.y + 5);
+  // Stores
+  ctx.fillStyle="orange";
+  ctx.fillRect(itemStorePos.x-20,itemStorePos.y-20,40,40);
+  ctx.fillStyle="cyan";
+  ctx.fillRect(upgradeStorePos.x-20,upgradeStorePos.y-20,40,40);
 
-  // draw spawned item if present
-  if(spawnedItem){
-    const iw = 44, ih = 44;
-    // draw item image
-    const img = new Image(); img.src = spawnedItem.img;
-    ctx.drawImage(img, spawnedItem.x - iw/2, spawnedItem.y - ih/2, iw, ih);
-    // small floating bob
-    ctx.fillStyle = "rgba(255,255,255,0.1)";
-    ctx.beginPath(); ctx.arc(spawnedItem.x, spawnedItem.y - 28, 22,0,Math.PI*2); ctx.fill();
-  }
+  // Item
+  ctx.fillStyle="yellow";
+  ctx.beginPath();
+  ctx.arc(targetItem.x,targetItem.y,targetItem.size/2,0,Math.PI*2);
+  ctx.fill();
 
-  // draw arrow if locator active
-  if(arrowActiveUntil > Date.now() && spawnedItem){
-    // draw arrow from player to item
-    const ax = player.x, ay = player.y - 30;
-    const bx = spawnedItem.x, by = spawnedItem.y;
-    ctx.strokeStyle = "rgba(255,255,0,0.95)";
-    ctx.lineWidth = 6;
-    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
-    // arrow tip
-    const ang = Math.atan2(by-ay, bx-ax);
-    ctx.fillStyle = "yellow";
-    ctx.beginPath();
-    ctx.moveTo(bx, by);
-    ctx.lineTo(bx - 14*Math.cos(ang-Math.PI/6), by - 14*Math.sin(ang-Math.PI/6));
-    ctx.lineTo(bx - 14*Math.cos(ang+Math.PI/6), by - 14*Math.sin(ang+Math.PI/6));
-    ctx.closePath(); ctx.fill();
-  }
-
-  // draw player (avatar image)
-  const pw = player.w, ph = player.h;
-  if(player.img && player.img.complete){
-    ctx.drawImage(player.img, player.x - pw/2, player.y - ph/2, pw, ph);
-  } else {
-    ctx.fillStyle = "orange";
-    ctx.beginPath(); ctx.arc(player.x, player.y, 24,0,Math.PI*2); ctx.fill();
-  }
-
-  // if near stores show small prompt
-  if(distance(player, itemStorePos) < 80){
-    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(player.x+20, player.y-62, 160,36);
-    ctx.fillStyle = "#fff"; ctx.font="14px sans-serif"; ctx.fillText("Press 'E' or touch to open Item Store", player.x+28, player.y-42);
-  } else if(distance(player, upgradeStorePos) < 80){
-    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(player.x+20, player.y-62, 180,36);
-    ctx.fillStyle = "#fff"; ctx.font="14px sans-serif"; ctx.fillText("Press 'E' or touch to open Upgrade Store", player.x+28, player.y-42);
-  }
+  // Player
+  ctx.fillStyle="white";
+  ctx.fillRect(player.x-20,player.y-20,40,40);
 
   ctx.restore();
 
-  // draw fixed HUD elements (no camera)
-  // top thumbnail visibility managed elsewhere
-}
+  // Score
+  ctx.fillStyle="white";
+  ctx.font="20px sans-serif";
+  ctx.fillText("🍬 "+candyCorn, canvas.width-100, 30);
 
-/* --------- store touch via 'E' key or tapping near stores --------- */
-window.addEventListener('keydown', (e)=>{
-  if(e.key.toLowerCase()==='e'){ tryOpenStores(); }
-});
-/* also allow tapping center icons: when user taps canvas near store positions, open store */
-canvas.addEventListener('pointerdown', (ev)=>{
-  const cam = getCam();
-  const wx = ev.clientX + cam.x;
-  const wy = ev.clientY + cam.y;
-  // detect store icon clicks
-  function hit(pos){
-    return Math.abs(wx - pos.x) < 40 && Math.abs(wy - pos.y) < 40;
-  }
-  if(hit(itemStorePos)) { renderItemStore(); openModal('itemStore'); }
-  else if(hit(upgradeStorePos)) { renderUpgradeStore(); openModal('upgradeStore'); }
-});
-
-/* --------- show/hide target thumbnail depending on spawnedItem --------- */
-function refreshTargetThumb(){
-  if(spawnedItem){
-    targetImg.src = spawnedItem.img;
-    targetThumb.style.visibility = 'visible';
-  } else {
-    targetThumb.style.visibility = 'hidden';
+  // Locator arrow
+  if(showArrow){
+    ctx.fillStyle="red";
+    ctx.beginPath();
+    ctx.moveTo(canvas.width/2, canvas.height/2);
+    ctx.lineTo(canvas.width/2 + (targetItem.x-player.x)/10, canvas.height/2 + (targetItem.y-player.y)/10);
+    ctx.stroke();
   }
 }
-/* small interval to keep thumbnail in sync */
-setInterval(refreshTargetThumb, 300);
 
-/* --------- Arrow auto-hide and cooldown UI updates --------- */
-setInterval(()=>{
-  // if arrow expired, ensure overlay etc handled by renderActionBar
-  if(arrowActiveUntil < Date.now()) arrowActiveUntil = 0;
-  // ensure cooldowns not in past are displayed
-  renderActionBar();
-}, 200);
-
-/* --------- click action bar items from DOM (delegation) --------- */
-actionBar.addEventListener('click', (e)=>{
-  const btn = e.target.closest('.actionBtn');
-  if(!btn) return;
-  if(btn.id === 'act_locator') useLocator();
-  if(btn.id === 'act_teleport') useTeleport();
-});
-
-/* --------- helper: if teleport or locator used when no item exists, show quick flash --- */
-function flashMessage(text){
-  const tmp = document.createElement('div');
-  tmp.style.position='fixed'; tmp.style.left='50%'; tmp.style.top='60%'; tmp.style.transform='translate(-50%,-50%)';
-  tmp.style.background='rgba(0,0,0,0.7)'; tmp.style.color='white'; tmp.style.padding='10px 16px'; tmp.style.borderRadius='10px';
-  tmp.style.zIndex='9999'; tmp.style.fontWeight='700';
-  tmp.textContent = text;
-  document.body.appendChild(tmp);
-  setTimeout(()=> tmp.remove(), 1100);
+function spawnNewItem(){
+  targetItem.x=Math.random()*mapSize;
+  targetItem.y=Math.random()*mapSize;
 }
 
-/* Hook useLocator and useTeleport to show message if nothing to find */
-const origUseLocator = useLocator;
-useLocator = function(){
-  if(!spawnedItem){ flashMessage('No item active'); return; }
-  origUseLocator();
-};
-const origUseTeleport = useTeleport;
-useTeleport = function(){
-  if(!spawnedItem){ flashMessage('No item active'); return; }
-  origUseTeleport();
-};
+function closeStore(id){
+  document.getElementById(id).style.display="none";
+}
 
-/* ensure action bar is built on load */
-renderActionBar();
+function buyItem(type){
+  if(type==="locator" && candyCorn>=5 && !hasLocator){
+    candyCorn-=5;
+    hasLocator=true;
+    alert("Bought locator!");
+  }
+  if(type==="teleport" && candyCorn>=20 && !hasTeleporter){
+    candyCorn-=20;
+    hasTeleporter=true;
+    alert("Bought teleporter!");
+  }
+}
 
-/* Keep actionBar updated with newest cooldowns every second */
-setInterval(()=>{
-  // clear overlays and re-render
-  renderActionBar();
-  updateScoreDisplay();
-}, 900);
+function buyUpgrade(type){
+  if(candyCorn>=8){
+    candyCorn-=8;
+    if(type==="locator") alert("Upgraded locator!");
+    if(type==="teleport") alert("Upgraded teleporter!");
+  }
+}
 
-/* Save state regularly */
-setInterval(saveState, 2500);
+// Locator ability
+let showArrow=false;
+function useLocator(){
+  if(hasLocator && locatorCooldown===0){
+    showArrow=true;
+    setTimeout(()=>{showArrow=false;},2000);
+    locatorCooldown=300; // 5 sec
+  }
+}
 
-/* end of prototype */
+// Teleporter ability
+function useTeleporter(){
+  if(hasTeleporter && teleportCooldown===0){
+    player.x=targetItem.x;
+    player.y=targetItem.y;
+    teleportCooldown=600; // 10 sec
+  }
+}
+
+// Spawn button
+function spawnCenter(){
+  player.x=mapSize/2;
+  player.y=mapSize/2;
+}
+
+gameLoop();
 </script>
 </body>
 </html>
