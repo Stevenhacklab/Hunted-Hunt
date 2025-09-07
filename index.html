@@ -1,249 +1,561 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Halloween Haunted Hunt</title>
-  <style>
-    body { margin:0; overflow:hidden; background:black; }
-    canvas { display:block; background:#222; }
-
-    /* Store menus */
-    .store {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      background: #333;
-      border: 4px solid orange;
-      padding: 20px;
-      width: 300px;
-      display: none;
-      color: white;
-      font-family: sans-serif;
-    }
-    .store h2 { margin-top:0; }
-    .store button { margin:5px; }
-    .close-btn {
-      position: absolute;
-      top: 5px; right: 5px;
-      background: red; color: white; border:none; cursor:pointer;
-      font-size: 16px; padding: 2px 6px;
-    }
-
-    /* HUD buttons */
-    #hud {
-      position: absolute;
-      bottom: 10px;
-      width: 100%;
-      text-align: center;
-    }
-    #hud button {
-      margin: 0 10px;
-      padding: 10px 20px;
-      font-size: 16px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-    #locatorBtn { background: purple; color:white; }
-    #teleportBtn { background: green; color:white; }
-    #spawnBtn { background: blue; color:white; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Halloween Haunted Hunt — Fixed</title>
+<style>
+  :root{--ui-bg:rgba(0,0,0,0.6);--panel:#fff;}
+  html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Arial;}
+  body{background:#111;color:#fff;overflow:hidden}
+  canvas{display:block; width:100vw;height:100vh;background:#1f3412;}
+  /* Top UI */
+  #topbar{
+    position:fixed; right:14px; top:12px; display:flex; align-items:center; gap:8px;
+    background:var(--ui-bg); padding:6px 10px; border-radius:10px;
+  }
+  #topbar img{width:28px;height:28px}
+  #topbar .score{font-weight:700;font-size:20px}
+  /* Target thumbnail */
+  #targetThumb{
+    position:fixed; left:50%; transform:translateX(-50%); top:8px;
+    background:var(--ui-bg); padding:6px 10px; border-radius:10px; display:flex; align-items:center; gap:8px;
+    min-width:160px; justify-content:center; visibility:hidden;
+  }
+  #targetThumb img{width:36px;height:36px;object-fit:contain}
+  /* Bottom controls */
+  #controls{position:fixed; left:0; bottom:0; right:0; pointer-events:none;}
+  #joystick{
+    position:absolute; left:14px; bottom:14px; width:140px; height:140px; border-radius:12px;
+    background:rgba(255,255,255,0.04); pointer-events:auto; display:flex; align-items:center; justify-content:center;
+  }
+  #joypad{
+    width:70px;height:70px;border-radius:50%; background:rgba(255,255,255,0.10); position:relative; touch-action:none;
+  }
+  #spawnBtn{
+    position:absolute; right:14px; bottom:14px; pointer-events:auto;
+    background:linear-gradient(180deg,#ff8a00,#d65a00); border:none; color:#111;
+    padding:12px 16px;border-radius:12px;font-weight:700; box-shadow:0 6px 12px rgba(0,0,0,0.4);
+  }
+  #actionBar{
+    position:fixed; left:50%; transform:translateX(-50%); bottom:18px; pointer-events:auto;
+    background:var(--ui-bg); padding:6px;border-radius:12px; display:flex; gap:10px; align-items:center;
+  }
+  .actionBtn{background:#fff;border-radius:8px;padding:6px 8px;display:flex;gap:8px;align-items:center;cursor:pointer; position:relative}
+  .actionBtn.disabled{opacity:0.35;pointer-events:none}
+  .cooldownOverlay{position:absolute;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;border-radius:8px;font-weight:700;color:#fff}
+  /* modals (static HTML) */
+  .modal{
+    position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:360px; max-width:94%; background:#fff;color:#111;border-radius:12px;padding:12px; display:none; z-index:40;
+  }
+  .modal h3{margin:0 0 8px 0}
+  .storeRow{display:flex; gap:10px; align-items:center; padding:8px; border-radius:8px; background:#f4f4f4; margin-bottom:8px}
+  .storeRow img{width:48px;height:48px;object-fit:contain}
+  .closeBtn{position:absolute; right:8px; top:8px; cursor:pointer; background:#ff6b6b;padding:6px;border-radius:6px;color:white;border:none}
+  button.small{padding:6px 8px;border-radius:8px;border:none;background:#2b2b2b;color:white;cursor:pointer}
+  button.small:disabled{opacity:0.45; cursor:default}
+  .muted{opacity:0.6}
+</style>
 </head>
 <body>
-<canvas id="game" width="800" height="600"></canvas>
+  <canvas id="game"></canvas>
 
-<!-- Item Store -->
-<div id="itemStore" class="store">
-  <button class="close-btn" onclick="closeStore('itemStore')">X</button>
-  <h2>Item Store</h2>
-  <div>
-    <img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png" width="32"> Item Locator - 5 🍬
-    <button onclick="buyItem('locator')">Buy</button>
+  <!-- target thumbnail -->
+  <div id="targetThumb"><span class="muted">Find:</span><img id="targetImg" src=""><div id="targetText" style="margin-left:6px"></div></div>
+
+  <!-- scoreboard -->
+  <div id="topbar"><img src="https://i.ibb.co/RTrBDhB4/Halloween-Candy-Corn-PNG-Clip-Art-Image.png" alt="candy"><div class="score" id="score">0</div></div>
+
+  <!-- controls -->
+  <div id="controls">
+    <div id="joystick"><div id="joypad"></div></div>
+    <div id="actionBar" aria-hidden="false"></div>
+    <button id="spawnBtn">Spawn (center)</button>
   </div>
-  <div>
-    <img src="https://freesvg.org/img/teleport.png" width="32"> Teleporter - 20 🍬
-    <button onclick="buyItem('teleport')">Buy</button>
+
+  <!-- Item Store (static layout) -->
+  <div id="itemStore" class="modal" aria-hidden="true">
+    <button class="closeBtn" id="closeItem">X</button>
+    <h3>Item Store</h3>
+    <div class="storeRow">
+      <img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png" alt="locator">
+      <div style="flex:1"><strong>Item Locator</strong><div style="font-size:13px" class="muted">Shows arrow to current item</div><div style="font-size:13px;margin-top:6px">Cost: 5 Candy</div></div>
+      <div><button id="buyLocator" class="small">Buy</button></div>
+    </div>
+
+    <div class="storeRow">
+      <img src="https://freesvg.org/img/teleport.png" alt="teleport">
+      <div style="flex:1"><strong>Teleporter</strong><div style="font-size:13px" class="muted">Teleport to current item</div><div style="font-size:13px;margin-top:6px">Cost: 20 Candy</div></div>
+      <div><button id="buyTeleport" class="small">Buy</button></div>
+    </div>
   </div>
-</div>
 
-<!-- Upgrade Store -->
-<div id="upgradeStore" class="store">
-  <button class="close-btn" onclick="closeStore('upgradeStore')">X</button>
-  <h2>Upgrade Store</h2>
-  <p>Locator Upgrade - 8 🍬</p>
-  <button onclick="buyUpgrade('locator')">Buy</button>
-  <p>Teleporter Upgrade - 8 🍬</p>
-  <button onclick="buyUpgrade('teleport')">Buy</button>
-</div>
+  <!-- Upgrade Store -->
+  <div id="upgradeStore" class="modal" aria-hidden="true">
+    <button class="closeBtn" id="closeUpgrade">X</button>
+    <h3>Upgrade Store</h3>
 
-<!-- HUD -->
-<div id="hud">
-  <button id="locatorBtn" onclick="useLocator()">Locator</button>
-  <button id="teleportBtn" onclick="useTeleporter()">Teleporter</button>
-  <button id="spawnBtn" onclick="spawnCenter()">Spawn</button>
-</div>
+    <div style="font-weight:700">Locator Upgrades (8 Candy each)</div>
+    <div class="storeRow">
+      <img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png"><div style="flex:1">Upgrade 1: Arrow 3s / CD 4s</div>
+      <div><button id="upgLoc1" class="small">Buy</button></div>
+    </div>
+    <div class="storeRow">
+      <img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png"><div style="flex:1">Upgrade 2: Arrow 4s / CD 3s</div>
+      <div><button id="upgLoc2" class="small">Buy</button></div>
+    </div>
+    <div class="storeRow">
+      <img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png"><div style="flex:1">Upgrade 3: Arrow 5s / CD 2s (MAX)</div>
+      <div><button id="upgLoc3" class="small">Buy</button></div>
+    </div>
+
+    <div style="height:8px"></div>
+    <div style="font-weight:700">Teleport Upgrades (8 Candy each)</div>
+    <div class="storeRow">
+      <img src="https://freesvg.org/img/teleport.png"><div style="flex:1">Upgrade 1: CD 25s</div>
+      <div><button id="upgTp1" class="small">Buy</button></div>
+    </div>
+    <div class="storeRow">
+      <img src="https://freesvg.org/img/teleport.png"><div style="flex:1">Upgrade 2: CD 20s</div>
+      <div><button id="upgTp2" class="small">Buy</button></div>
+    </div>
+    <div class="storeRow">
+      <img src="https://freesvg.org/img/teleport.png"><div style="flex:1">Upgrade 3: CD 15s (MAX)</div>
+      <div><button id="upgTp3" class="small">Buy</button></div>
+    </div>
+  </div>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+/* =============================
+  Fixed prototype — single-file
+  No localStorage (no saving on reload)
+  Sequential upgrades enforced
+   ============================= */
 
-// World
-const mapSize = 2000;
-let player = {x: mapSize/2, y: mapSize/2, size:40, speed:4};
-let candyCorn = 0;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+function fit(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+fit(); window.addEventListener('resize', fit);
 
-// Current item to find
-let targetItem = {x:500, y:500, size:40};
+/* Assets */
+const AVATARS = [
+  "https://i.ibb.co/Fq4c4DFn/966891-3652a.gif",
+  "https://i.ibb.co/DDxBbjDb/pngtree-halloween-pumpkin-with-candies-pumpkin-trick-or-treat-bag-halloween-pumpkin-png-image-103243.png",
+  "https://i.ibb.co/X1yfLRm/pngtree-happy-candy-corn-character-png-image-13841752.png",
+  "https://i.ibb.co/K3SYj33/IMG-0212.png",
+  "https://i.ibb.co/RTpTfb4Z/IMG-0213.gif",
+  "https://i.ibb.co/zWkTcMVqS/mumy-paklet.png",
+  "https://i.ibb.co/Xf4p0fw6/200w.gif",
+  "https://i.ibb.co/N6rmPVqS/giphy.webp"
+];
+const ITEM_IMAGES = AVATARS.slice(); // use same set
 
-// Camera
-let camX=0, camY=0;
+/* World & player */
+const world = { width: 3000, height: 2200 };
+let player = { x: world.width/2, y: world.height/2, w:48, h:48, speed:3.6, img:null };
 
-// Store triggers
-const itemStorePos = {x: mapSize/2 - 100, y: mapSize/2};
-const upgradeStorePos = {x: mapSize/2 + 100, y: mapSize/2};
+/* center stores */
+const CENTER = { x: world.width/2, y: world.height/2 };
+const itemStorePos = { x: CENTER.x - 120, y: CENTER.y, w:64, h:64 };
+const upgradeStorePos = { x: CENTER.x + 120, y: CENTER.y, w:64, h:64 };
 
-// Inventory
-let hasLocator=false, hasTeleporter=false;
-let locatorCooldown=0, teleportCooldown=0;
+/* camera */
+function cam(){ return { x: player.x - canvas.width/2, y: player.y - canvas.height/2 }; }
 
-// Keyboard
-let keys={};
-window.addEventListener("keydown",e=>keys[e.key]=true);
-window.addEventListener("keyup",e=>keys[e.key]=false);
+/* pick avatar */
+(function pickAvatar(){
+  const i = Math.floor(Math.random()*AVATARS.length);
+  const img = new Image(); img.src = AVATARS[i];
+  player.img = img;
+})();
 
-function gameLoop(){
-  update();
+/* input */
+let keys = {};
+window.addEventListener('keydown', e => keys[e.key]=true);
+window.addEventListener('keyup', e => keys[e.key]=false);
+
+/* joystick */
+const joypad = document.getElementById('joypad');
+let joy = { active:false, x:0, y:0 };
+(function initJoy(){
+  const area = document.getElementById('joystick');
+  let start = null;
+  function getP(e){ if(e.touches) return {x:e.touches[0].clientX, y:e.touches[0].clientY}; return {x:e.clientX, y:e.clientY}; }
+  area.addEventListener('pointerdown', e=>{ joy.active=true; start = getP(e); });
+  window.addEventListener('pointerup', ()=>{ joy.active=false; joy.x=0; joy.y=0; joypad.style.transform='translate(0,0)'; start=null; });
+  window.addEventListener('pointermove', e => {
+    if(!start || !joy.active) return;
+    const cur = getP(e);
+    const dx = cur.x - start.x, dy = cur.y - start.y;
+    const max = 40;
+    const rx = Math.max(-1, Math.min(1, dx/max));
+    const ry = Math.max(-1, Math.min(1, dy/max));
+    joy.x = rx; joy.y = ry;
+    joypad.style.transform = `translate(${rx*32}px, ${ry*32}px)`;
+  });
+})();
+
+/* UI refs */
+const scoreEl = document.getElementById('score');
+const targetThumb = document.getElementById('targetThumb');
+const targetImg = document.getElementById('targetImg');
+const targetText = document.getElementById('targetText');
+const actionBar = document.getElementById('actionBar');
+const spawnBtn = document.getElementById('spawnBtn');
+
+/* game items */
+let spawnedItem = null;
+const SPAWN_MS = 6000;
+let lastSpawn = 0;
+
+/* state in memory only (no persistence) */
+let state = {
+  candy: 0,
+  has: { locator:false, teleport:false },
+  upgrades: { locator:0, teleport:0 }, // 0..3
+  cooldowns: { locatorReady:0, teleportReady:0 }
+};
+
+/* Helper param functions */
+function locatorParams(level){
+  if(level<=0) return {dur:2, cd:5};
+  if(level===1) return {dur:3, cd:4};
+  if(level===2) return {dur:4, cd:3};
+  return {dur:5, cd:2};
+}
+function teleportCDFor(level){
+  if(level<=0) return 30;
+  if(level===1) return 25;
+  if(level===2) return 20;
+  return 15;
+}
+
+/* spawn item */
+function spawnRandomItem(){
+  if(spawnedItem) return;
+  const margin = 120;
+  const x = Math.random()*(world.width - margin*2)+margin;
+  const y = Math.random()*(world.height - margin*2)+margin;
+  const idx = Math.floor(Math.random()*ITEM_IMAGES.length);
+  spawnedItem = { x, y, img: ITEM_IMAGES[idx], id: Date.now() };
+  showTargetThumb(spawnedItem.img);
+}
+
+/* show/hide thumbnail */
+function showTargetThumb(url){
+  targetImg.src = url;
+  targetText.textContent = '';
+  targetThumb.style.visibility = 'visible';
+}
+function hideTargetThumb(){
+  targetThumb.style.visibility = 'hidden';
+}
+
+/* distance */
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+/* draw / loop */
+let lastTime = performance.now();
+let arrowActiveUntil = 0;
+function loop(ts){
+  const dt = ts - lastTime; lastTime = ts;
+
+  // movement
+  let vx = 0, vy = 0;
+  if(keys["ArrowUp"]||keys["w"]) vy -= 1;
+  if(keys["ArrowDown"]||keys["s"]) vy += 1;
+  if(keys["ArrowLeft"]||keys["a"]) vx -= 1;
+  if(keys["ArrowRight"]||keys["d"]) vx += 1;
+  if(joy.active){ vx += joy.x; vy += joy.y; }
+  if(vx!==0 || vy!==0){
+    const mag = Math.hypot(vx, vy) || 1;
+    vx = vx/mag; vy = vy/mag;
+    player.x += vx * player.speed * (dt/16);
+    player.y += vy * player.speed * (dt/16);
+  }
+
+  // clamp player
+  player.x = Math.max(20, Math.min(world.width-20, player.x));
+  player.y = Math.max(20, Math.min(world.height-20, player.y));
+
+  // spawn logic
+  if(performance.now() - lastSpawn > SPAWN_MS){
+    spawnRandomItem();
+    lastSpawn = performance.now();
+  }
+
+  // pickup
+  if(spawnedItem && dist(player, spawnedItem) < 36){
+    state.candy += 5;
+    spawnedItem = null;
+    hideTargetThumb();
+    updateScore();
+    renderActionBar();
+  }
+
+  // open modal if near store (no auto-open now; we show prompt on canvas)
+  // update cooldown display
+  renderActionBar();
+
   draw();
-  requestAnimationFrame(gameLoop);
+
+  requestAnimationFrame(loop);
 }
+requestAnimationFrame(loop);
 
-function update(){
-  // Move
-  if(keys["ArrowUp"]) player.y-=player.speed;
-  if(keys["ArrowDown"]) player.y+=player.speed;
-  if(keys["ArrowLeft"]) player.x-=player.speed;
-  if(keys["ArrowRight"]) player.x+=player.speed;
-
-  // Camera follows
-  camX = player.x - canvas.width/2;
-  camY = player.y - canvas.height/2;
-
-  // Collision with item
-  if(Math.abs(player.x-targetItem.x)<40 && Math.abs(player.y-targetItem.y)<40){
-    candyCorn+=5;
-    spawnNewItem();
-  }
-
-  // Touch stores
-  if(Math.abs(player.x-itemStorePos.x)<50 && Math.abs(player.y-itemStorePos.y)<50){
-    document.getElementById("itemStore").style.display="block";
-  }
-  if(Math.abs(player.x-upgradeStorePos.x)<50 && Math.abs(player.y-upgradeStorePos.y)<50){
-    document.getElementById("upgradeStore").style.display="block";
-  }
-
-  if(locatorCooldown>0) locatorCooldown--;
-  if(teleportCooldown>0) teleportCooldown--;
-}
-
+/* draw world */
 function draw(){
+  const c = cam();
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.save();
-  ctx.translate(-camX, -camY);
+  ctx.translate(-c.x, -c.y);
 
-  // Map background
-  ctx.fillStyle="darkgreen";
-  ctx.fillRect(0,0,mapSize,mapSize);
+  // background
+  ctx.fillStyle = "#23431b";
+  ctx.fillRect(0,0,world.width, world.height);
 
-  // Stores
-  ctx.fillStyle="orange";
-  ctx.fillRect(itemStorePos.x-20,itemStorePos.y-20,40,40);
-  ctx.fillStyle="cyan";
-  ctx.fillRect(upgradeStorePos.x-20,upgradeStorePos.y-20,40,40);
+  // grid
+  ctx.strokeStyle = "rgba(0,0,0,0.12)";
+  for(let gx=0; gx<world.width; gx+=120){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,world.height); ctx.stroke(); }
+  for(let gy=0; gy<world.height; gy+=120){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(world.width,gy); ctx.stroke(); }
 
-  // Item
-  ctx.fillStyle="yellow";
-  ctx.beginPath();
-  ctx.arc(targetItem.x,targetItem.y,targetItem.size/2,0,Math.PI*2);
-  ctx.fill();
+  // stores
+  ctx.fillStyle = "#f5e6a0"; ctx.fillRect(itemStorePos.x-32, itemStorePos.y-32, 64,64);
+  ctx.fillStyle = "#222"; ctx.font = "bold 14px sans-serif"; ctx.fillText("ITEM", itemStorePos.x-18, itemStorePos.y + 6);
+  ctx.fillStyle = "#f5e6a0"; ctx.fillRect(upgradeStorePos.x-32, upgradeStorePos.y-32,64,64);
+  ctx.fillStyle = "#222"; ctx.fillText("UPG", upgradeStorePos.x-14, upgradeStorePos.y +6);
 
-  // Player
-  ctx.fillStyle="white";
-  ctx.fillRect(player.x-20,player.y-20,40,40);
+  // spawned item
+  if(spawnedItem){
+    const iw = 44, ih = 44;
+    const im = new Image(); im.src = spawnedItem.img;
+    ctx.drawImage(im, spawnedItem.x - iw/2, spawnedItem.y - ih/2, iw, ih);
+  }
+
+  // arrow if locator active
+  if(Date.now() < arrowActiveUntil && spawnedItem){
+    const px = player.x, py = player.y - 30;
+    const bx = spawnedItem.x, by = spawnedItem.y;
+    ctx.strokeStyle = "rgba(255,255,0,0.95)"; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(bx,by); ctx.stroke();
+    const ang = Math.atan2(by-py, bx-px);
+    ctx.fillStyle = "yellow";
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx - 14*Math.cos(ang-Math.PI/6), by - 14*Math.sin(ang-Math.PI/6));
+    ctx.lineTo(bx - 14*Math.cos(ang+Math.PI/6), by - 14*Math.sin(ang+Math.PI/6)); ctx.closePath(); ctx.fill();
+  }
+
+  // player (avatar)
+  if(player.img && player.img.complete){
+    ctx.drawImage(player.img, player.x - player.w/2, player.y - player.h/2, player.w, player.h);
+  } else {
+    ctx.fillStyle = "orange"; ctx.beginPath(); ctx.arc(player.x, player.y, 24, 0, Math.PI*2); ctx.fill();
+  }
+
+  // store proximity help (draw near player)
+  if(dist(player, itemStorePos) < 80){
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(player.x+20, player.y-62, 180,36);
+    ctx.fillStyle = "#fff"; ctx.font="14px sans-serif"; ctx.fillText("Press 'E' or tap store to open Item Store", player.x+28, player.y-42);
+  } else if(dist(player, upgradeStorePos) < 80){
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(player.x+20, player.y-62, 200,36);
+    ctx.fillStyle = "#fff"; ctx.font="14px sans-serif"; ctx.fillText("Press 'E' or tap store to open Upgrade Store", player.x+28, player.y-42);
+  }
 
   ctx.restore();
 
-  // Score
-  ctx.fillStyle="white";
-  ctx.font="20px sans-serif";
-  ctx.fillText("🍬 "+candyCorn, canvas.width-100, 30);
+  // top HUD drawn by DOM; nothing else here
+}
 
-  // Locator arrow
-  if(showArrow){
-    ctx.fillStyle="red";
-    ctx.beginPath();
-    ctx.moveTo(canvas.width/2, canvas.height/2);
-    ctx.lineTo(canvas.width/2 + (targetItem.x-player.x)/10, canvas.height/2 + (targetItem.y-player.y)/10);
-    ctx.stroke();
+/* ---------- UI helpers ---------- */
+function updateScore(){ scoreEl.textContent = state.candy; }
+
+/* action bar rendering */
+function renderActionBar(){
+  actionBar.innerHTML = '';
+  // Locator button if purchased
+  if(state.has.locator){
+    const node = document.createElement('div'); node.className = 'actionBtn'; node.id = 'act_locator';
+    node.style.position='relative';
+    node.innerHTML = `<img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png" style="width:34px;height:34px"><div style="font-weight:700">Locator</div>`;
+    const cdLeft = Math.max(0, Math.floor((state.cooldowns.locatorReady - Date.now())/1000));
+    if(cdLeft > 0){
+      const overlay = document.createElement('div'); overlay.className = 'cooldownOverlay'; overlay.textContent = cdLeft + 's';
+      node.appendChild(overlay);
+      node.classList.add('disabled');
+    }
+    node.addEventListener('click', ()=> { tryUseLocator(); });
+    actionBar.appendChild(node);
+  }
+  // Teleport
+  if(state.has.teleport){
+    const node = document.createElement('div'); node.className = 'actionBtn'; node.id = 'act_tp';
+    node.style.position='relative';
+    node.innerHTML = `<img src="https://freesvg.org/img/teleport.png" style="width:34px;height:34px"><div style="font-weight:700">Teleport</div>`;
+    const cdLeft = Math.max(0, Math.floor((state.cooldowns.teleportReady - Date.now())/1000));
+    if(cdLeft > 0){ const overlay = document.createElement('div'); overlay.className='cooldownOverlay'; overlay.textContent = cdLeft + 's'; node.appendChild(overlay); node.classList.add('disabled'); }
+    node.addEventListener('click', ()=> { tryUseTeleport(); });
+    actionBar.appendChild(node);
   }
 }
 
-function spawnNewItem(){
-  targetItem.x=Math.random()*mapSize;
-  targetItem.y=Math.random()*mapSize;
+/* try-use wrappers with helpful messages */
+function tryUseLocator(){
+  if(!state.has.locator){ flash('You must buy Locator'); return; }
+  if(!spawnedItem){ flash('No active item'); return; }
+  if(state.cooldowns.locatorReady > Date.now()){ flash('Locator cooling'); return; }
+  const p = locatorParams(state.upgrades.locator);
+  arrowActiveUntil = Date.now() + p.dur*1000;
+  state.cooldowns.locatorReady = Date.now() + p.cd*1000;
+  renderActionBar();
 }
 
-function closeStore(id){
-  document.getElementById(id).style.display="none";
+function tryUseTeleport(){
+  if(!state.has.teleport){ flash('You must buy Teleporter'); return; }
+  if(!spawnedItem){ flash('No active item'); return; }
+  if(state.cooldowns.teleportReady > Date.now()){ flash('Teleporter cooling'); return; }
+  // teleport to item
+  player.x = spawnedItem.x; player.y = spawnedItem.y;
+  // set cooldown based on upgrades
+  const cd = teleportCDFor(state.upgrades.teleport);
+  state.cooldowns.teleportReady = Date.now() + cd*1000;
+  renderActionBar();
 }
 
-function buyItem(type){
-  if(type==="locator" && candyCorn>=5 && !hasLocator){
-    candyCorn-=5;
-    hasLocator=true;
-    alert("Bought locator!");
+/* flash message */
+function flash(t){
+  const d = document.createElement('div');
+  d.style.position='fixed'; d.style.left='50%'; d.style.top='60%'; d.style.transform='translate(-50%,-50%)';
+  d.style.background='rgba(0,0,0,0.7)'; d.style.color='white'; d.style.padding='10px 14px'; d.style.borderRadius='10px'; d.style.zIndex='9999'; d.style.fontWeight='700';
+  d.textContent = t;
+  document.body.appendChild(d);
+  setTimeout(()=> d.remove(), 1100);
+}
+
+/* spawn button */
+spawnBtn.addEventListener('click', ()=> { player.x = CENTER.x; player.y = CENTER.y; });
+
+/* ---------- stores: open/close & buy logic ---------- */
+const itemStore = document.getElementById('itemStore');
+const upgradeStore = document.getElementById('upgradeStore');
+document.getElementById('closeItem').addEventListener('click', ()=> closeModal(itemStore));
+document.getElementById('closeUpgrade').addEventListener('click', ()=> closeModal(upgradeStore));
+
+function closeModal(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); }
+
+/* buy item buttons */
+document.getElementById('buyLocator').addEventListener('click', ()=>{
+  const cost = 5;
+  if(state.has.locator){ flash('Already owned'); return; }
+  if(state.candy < cost){ flash('Not enough candy'); return; }
+  state.candy -= cost; state.has.locator = true; updateScore(); renderActionBar(); updateStoreUI();
+});
+document.getElementById('buyTeleport').addEventListener('click', ()=>{
+  const cost = 20;
+  if(state.has.teleport){ flash('Already owned'); return; }
+  if(state.candy < cost){ flash('Not enough candy'); return; }
+  state.candy -= cost; state.has.teleport = true; updateScore(); renderActionBar(); updateStoreUI();
+});
+
+/* upgrades (sequential enforcement) */
+function updateStoreUI(){
+  // item buys
+  document.getElementById('buyLocator').disabled = state.has.locator || state.candy < 5;
+  document.getElementById('buyTeleport').disabled = state.has.teleport || state.candy < 20;
+
+  // locator upgrades: upg1 can be bought if base item owned & not already bought; upg2 only if upg1 bought; upg3 only if upg2 bought
+  for(let t=1;t<=3;t++){
+    const btn = document.getElementById('upgLoc' + t);
+    const cost = 8;
+    const canBuy = state.has.locator && state.upgrades.locator === t-1 && state.candy >= cost;
+    btn.disabled = !canBuy;
+    btn.textContent = (state.upgrades.locator >= t) ? (t===3 ? 'MAX' : 'Owned') : 'Buy';
+    if(state.upgrades.locator >= t) btn.disabled = true;
   }
-  if(type==="teleport" && candyCorn>=20 && !hasTeleporter){
-    candyCorn-=20;
-    hasTeleporter=true;
-    alert("Bought teleporter!");
+  // teleport upgrades same sequential
+  for(let t=1;t<=3;t++){
+    const btn = document.getElementById('upgTp' + t);
+    const cost = 8;
+    const canBuy = state.has.teleport && state.upgrades.teleport === t-1 && state.candy >= cost;
+    btn.disabled = !canBuy;
+    btn.textContent = (state.upgrades.teleport >= t) ? (t===3 ? 'MAX' : 'Owned') : 'Buy';
+    if(state.upgrades.teleport >= t) btn.disabled = true;
   }
 }
 
-function buyUpgrade(type){
-  if(candyCorn>=8){
-    candyCorn-=8;
-    if(type==="locator") alert("Upgraded locator!");
-    if(type==="teleport") alert("Upgraded teleporter!");
-  }
+/* upgrade click handlers */
+document.getElementById('upgLoc1').addEventListener('click', ()=> buyUpgrade('locator',1));
+document.getElementById('upgLoc2').addEventListener('click', ()=> buyUpgrade('locator',2));
+document.getElementById('upgLoc3').addEventListener('click', ()=> buyUpgrade('locator',3));
+document.getElementById('upgTp1').addEventListener('click', ()=> buyUpgrade('teleport',1));
+document.getElementById('upgTp2').addEventListener('click', ()=> buyUpgrade('teleport',2));
+document.getElementById('upgTp3').addEventListener('click', ()=> buyUpgrade('teleport',3));
+
+function buyUpgrade(type, tier){
+  const cost = 8;
+  // require base item
+  if(type === 'locator' && !state.has.locator){ flash('Buy Locator first'); return; }
+  if(type === 'teleport' && !state.has.teleport){ flash('Buy Teleport first'); return; }
+  // require sequential: you can only buy tier t if current level === t-1
+  const cur = state.upgrades[type];
+  if(cur !== tier-1){ flash('Buy previous upgrade first'); return; }
+  if(state.candy < cost){ flash('Not enough candy'); return; }
+  // purchase
+  state.candy -= cost;
+  state.upgrades[type] = tier;
+  updateScore();
+  updateStoreUI();
+  renderActionBar();
+  flash(type === 'locator' ? `Locator upgraded to ${tier}` : `Teleport upgraded to ${tier}`);
 }
 
-// Locator ability
-let showArrow=false;
-function useLocator(){
-  if(hasLocator && locatorCooldown===0){
-    showArrow=true;
-    setTimeout(()=>{showArrow=false;},2000);
-    locatorCooldown=300; // 5 sec
-  }
+/* open stores by proximity or clicking store icons on canvas */
+window.addEventListener('keydown', (e)=> { if(e.key.toLowerCase()==='e') { tryOpenNearbyStore(); } });
+function tryOpenNearbyStore(){
+  if(dist(player, itemStorePos) < 80){ openModal(itemStore); }
+  else if(dist(player, upgradeStorePos) < 80){ openModal(upgradeStore); }
 }
+function openModal(m){ m.style.display='block'; m.setAttribute('aria-hidden','false'); updateStoreUI(); }
 
-// Teleporter ability
-function useTeleporter(){
-  if(hasTeleporter && teleportCooldown===0){
-    player.x=targetItem.x;
-    player.y=targetItem.y;
-    teleportCooldown=600; // 10 sec
-  }
-}
+/* allow clicking / tapping store icons on canvas (pointer coords -> world coords) */
+canvas.addEventListener('pointerdown', (ev)=>{
+  const camera = cam();
+  const wx = ev.clientX + camera.x;
+  const wy = ev.clientY + camera.y;
+  if(Math.abs(wx - itemStorePos.x) < 40 && Math.abs(wy - itemStorePos.y) < 40){ openModal(itemStore); return; }
+  if(Math.abs(wx - upgradeStorePos.x) < 40 && Math.abs(wy - upgradeStorePos.y) < 40){ openModal(upgradeStore); return; }
+});
 
-// Spawn button
-function spawnCenter(){
-  player.x=mapSize/2;
-  player.y=mapSize/2;
-}
+/* locator & teleport use via action bar are wired in renderActionBar() -> tryUseLocator / tryUseTeleport */
 
-gameLoop();
+/* Keep UI updated regularly */
+setInterval(()=> {
+  // thumbnail update
+  if(spawnedItem){ targetImg.src = spawnedItem.img; targetThumb.style.visibility='visible'; }
+  else targetThumb.style.visibility='hidden';
+  // cooldown enforcement cleaning
+  renderActionBar();
+  updateScore();
+  updateStoreUI();
+}, 300);
+
+/* spawn timing */
+setInterval(()=> {
+  if(!spawnedItem) spawnRandomItem();
+}, 1500);
+
+/* helper: avoid using localStorage -> everything resets on reload */
+
+/* small helper for showing quick text */
+function quick(msg){ flash(msg); }
+
+/* initial UI render */
+updateScore();
+renderActionBar();
+updateStoreUI();
+
+/* Expose certain functions for debugging on console (optional) */
+window._state = state;
+window._spawn = spawnRandomItem;
+
 </script>
 </body>
 </html>
