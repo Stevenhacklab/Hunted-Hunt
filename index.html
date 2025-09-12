@@ -5,22 +5,25 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Halloween Haunted Hunt — Fixed</title>
 <style>
-  :root{--ui-bg:rgba(0,0,0,0.6);}
+  :root{--ui-bg:rgba(0,0,0,0.6);--panel:#fff;}
   html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Arial;}
   body{background:#111;color:#fff;overflow:hidden}
   canvas{display:block; width:100vw;height:100vh;background:#1f3412;}
+  /* Top UI */
   #topbar{
     position:fixed; right:14px; top:12px; display:flex; align-items:center; gap:8px;
     background:var(--ui-bg); padding:6px 10px; border-radius:10px;
   }
   #topbar img{width:28px;height:28px}
   #topbar .score{font-weight:700;font-size:20px}
+  /* Target thumbnail */
   #targetThumb{
     position:fixed; left:50%; transform:translateX(-50%); top:8px;
     background:var(--ui-bg); padding:6px 10px; border-radius:10px; display:flex; align-items:center; gap:8px;
     min-width:160px; justify-content:center; visibility:hidden;
   }
   #targetThumb img{width:36px;height:36px;object-fit:contain}
+  /* Bottom controls */
   #controls{position:fixed; left:0; bottom:0; right:0; pointer-events:none;}
   #joystick{
     position:absolute; left:14px; bottom:14px; width:140px; height:140px; border-radius:12px;
@@ -41,6 +44,7 @@
   .actionBtn{background:#fff;border-radius:8px;padding:6px 8px;display:flex;gap:8px;align-items:center;cursor:pointer; position:relative}
   .actionBtn.disabled{opacity:0.35;pointer-events:none}
   .cooldownOverlay{position:absolute;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;border-radius:8px;font-weight:700;color:#fff}
+  /* modals (static HTML) */
   .modal{
     position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:360px; max-width:94%; background:#fff;color:#111;border-radius:12px;padding:12px; display:none; z-index:40;
   }
@@ -56,16 +60,20 @@
 <body>
   <canvas id="game"></canvas>
 
+  <!-- target thumbnail -->
   <div id="targetThumb"><span class="muted">Find:</span><img id="targetImg" src=""><div id="targetText" style="margin-left:6px"></div></div>
 
+  <!-- scoreboard -->
   <div id="topbar"><img src="https://i.ibb.co/RTrBDhB4/Halloween-Candy-Corn-PNG-Clip-Art-Image.png" alt="candy"><div class="score" id="score">0</div></div>
 
+  <!-- controls -->
   <div id="controls">
     <div id="joystick"><div id="joypad"></div></div>
     <div id="actionBar" aria-hidden="false"></div>
     <button id="spawnBtn">Spawn (center)</button>
   </div>
 
+  <!-- Item Store (static layout) -->
   <div id="itemStore" class="modal" aria-hidden="true">
     <button class="closeBtn" id="closeItem">X</button>
     <h3>Item Store</h3>
@@ -74,6 +82,7 @@
       <div style="flex:1"><strong>Item Locator</strong><div style="font-size:13px" class="muted">Shows arrow to current item</div><div style="font-size:13px;margin-top:6px">Cost: 5 Candy</div></div>
       <div><button id="buyLocator" class="small">Buy</button></div>
     </div>
+
     <div class="storeRow">
       <img src="https://freesvg.org/img/teleport.png" alt="teleport">
       <div style="flex:1"><strong>Teleporter</strong><div style="font-size:13px" class="muted">Teleport to current item</div><div style="font-size:13px;margin-top:6px">Cost: 20 Candy</div></div>
@@ -81,9 +90,11 @@
     </div>
   </div>
 
+  <!-- Upgrade Store -->
   <div id="upgradeStore" class="modal" aria-hidden="true">
     <button class="closeBtn" id="closeUpgrade">X</button>
     <h3>Upgrade Store</h3>
+
     <div style="font-weight:700">Locator Upgrades (8 Candy each)</div>
     <div class="storeRow">
       <img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png"><div style="flex:1">Upgrade 1: Arrow 3s / CD 4s</div>
@@ -97,6 +108,7 @@
       <img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png"><div style="flex:1">Upgrade 3: Arrow 5s / CD 2s (MAX)</div>
       <div><button id="upgLoc3" class="small">Buy</button></div>
     </div>
+
     <div style="height:8px"></div>
     <div style="font-weight:700">Teleport Upgrades (8 Candy each)</div>
     <div class="storeRow">
@@ -114,12 +126,18 @@
   </div>
 
 <script>
-/* ======== INITIAL SETUP ======== */
+/* =============================
+  Fixed prototype — single-file
+  No localStorage (no saving on reload)
+  Sequential upgrades enforced
+   ============================= */
+
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 function fit(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 fit(); window.addEventListener('resize', fit);
 
+/* Assets */
 const AVATARS = [
   "https://i.ibb.co/Fq4c4DFn/966891-3652a.gif",
   "https://i.ibb.co/DDxBbjDb/pngtree-halloween-pumpkin-with-candies-pumpkin-trick-or-treat-bag-halloween-pumpkin-png-image-103243.png",
@@ -130,180 +148,414 @@ const AVATARS = [
   "https://i.ibb.co/Xf4p0fw6/200w.gif",
   "https://i.ibb.co/N6rmPVqS/giphy.webp"
 ];
-const ITEM_IMAGES = AVATARS.slice();
+const ITEM_IMAGES = AVATARS.slice(); // use same set
 
+/* World & player */
 const world = { width: 3000, height: 2200 };
 let player = { x: world.width/2, y: world.height/2, w:48, h:48, speed:3.6, img:null };
+
+/* center stores */
 const CENTER = { x: world.width/2, y: world.height/2 };
 const itemStorePos = { x: CENTER.x - 120, y: CENTER.y, w:64, h:64 };
 const upgradeStorePos = { x: CENTER.x + 120, y: CENTER.y, w:64, h:64 };
 
+/* camera */
 function cam(){ return { x: player.x - canvas.width/2, y: player.y - canvas.height/2 }; }
 
+/* pick avatar */
 (function pickAvatar(){
   const i = Math.floor(Math.random()*AVATARS.length);
   const img = new Image(); img.src = AVATARS[i];
   player.img = img;
 })();
 
+/* input */
 let keys = {};
 window.addEventListener('keydown', e => keys[e.key]=true);
 window.addEventListener('keyup', e => keys[e.key]=false);
 
 /* joystick */
 const joypad = document.getElementById('joypad');
-let joy = { active:false, x:0,y:0 };
-joypad.addEventListener('pointerdown', e=>{ joy.active=true; joy.startX=e.clientX; joy.startY=e.clientY; });
-window.addEventListener('pointermove', e=>{ if(joy.active){ joy.x=e.clientX-joy.startX; joy.y=e.clientY-joy.startY; }});
-window.addEventListener('pointerup', e=>{ joy.active=false; joy.x=0; joy.y=0; });
+let joy = { active:false, x:0, y:0 };
+(function initJoy(){
+  const area = document.getElementById('joystick');
+  let start = null;
+  function getP(e){ if(e.touches) return {x:e.touches[0].clientX, y:e.touches[0].clientY}; return {x:e.clientX, y:e.clientY}; }
+  area.addEventListener('pointerdown', e=>{ joy.active=true; start = getP(e); });
+  window.addEventListener('pointerup', ()=>{ joy.active=false; joy.x=0; joy.y=0; joypad.style.transform='translate(0,0)'; start=null; });
+  window.addEventListener('pointermove', e => {
+    if(!start || !joy.active) return;
+    const cur = getP(e);
+    const dx = cur.x - start.x, dy = cur.y - start.y;
+    const max = 40;
+    const rx = Math.max(-1, Math.min(1, dx/max));
+    const ry = Math.max(-1, Math.min(1, dy/max));
+    joy.x = rx; joy.y = ry;
+    joypad.style.transform = `translate(${rx*32}px, ${ry*32}px)`;
+  });
+})();
 
-/* state & store */
-let state = { candy:50, has:{locator:false,teleport:false}, upgrades:{locator:0,teleport:0} };
+/* UI refs */
+const scoreEl = document.getElementById('score');
+const targetThumb = document.getElementById('targetThumb');
+const targetImg = document.getElementById('targetImg');
+const targetText = document.getElementById('targetText');
+const actionBar = document.getElementById('actionBar');
+const spawnBtn = document.getElementById('spawnBtn');
 
-/* spawned item */
+/* game items */
 let spawnedItem = null;
-let arrowActiveUntil=0;
+const SPAWN_MS = 6000;
+let lastSpawn = 0;
 
-/* ======== FUNCTIONS ======== */
-function dist(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
-function showTargetThumb(src){ 
-  document.getElementById('targetThumb').style.visibility='visible';
-  document.getElementById('targetImg').src = src;
-  document.getElementById('targetText').textContent = '';
+/* state in memory only (no persistence) */
+let state = {
+  candy: 0,
+  has: { locator:false, teleport:false },
+  upgrades: { locator:0, teleport:0 }, // 0..3
+  cooldowns: { locatorReady:0, teleportReady:0 }
+};
+
+/* Helper param functions */
+function locatorParams(level){
+  if(level<=0) return {dur:2, cd:5};
+  if(level===1) return {dur:3, cd:4};
+  if(level===2) return {dur:4, cd:3};
+  return {dur:5, cd:2};
+}
+function teleportCDFor(level){
+  if(level<=0) return 30;
+  if(level===1) return 25;
+  if(level===2) return 20;
+  return 15;
 }
 
-function buyItem(type,cost){
-  if(state.has[type]) return alert('Already owned!');
-  if(state.candy<cost) return alert('Not enough candy!');
-  state.candy -= cost;
-  state.has[type]=true;
-  updateScore();
-  renderActionBar();
-}
-function buyUpgrade(type,level){
-  if(level>1 && state.upgrades[type]<level-1) return alert('Buy previous level first!');
-  if(state.candy<8) return alert('Not enough candy!');
-  state.candy-=8;
-  state.upgrades[type]=level;
-  updateScore();
-  renderActionBar();
-}
-function updateScore(){ document.getElementById('score').textContent = state.candy; }
-
-/* ======== BUTTONS ======== */
-['buyLocator','buyTeleport','upgLoc1','upgLoc2','upgLoc3','upgTp1','upgTp2','upgTp3'].forEach(id=>{
-  const btn=document.getElementById(id); if(!btn) return;
-  btn.addEventListener('click',()=>handleStoreClick(id));
-});
-function handleStoreClick(id){
-  switch(id){
-    case 'buyLocator': buyItem('locator',5); break;
-    case 'buyTeleport': buyItem('teleport',20); break;
-    case 'upgLoc1': buyUpgrade('locator',1); break;
-    case 'upgLoc2': buyUpgrade('locator',2); break;
-    case 'upgLoc3': buyUpgrade('locator',3); break;
-    case 'upgTp1': buyUpgrade('teleport',1); break;
-    case 'upgTp2': buyUpgrade('teleport',2); break;
-    case 'upgTp3': buyUpgrade('teleport',3); break;
-  }
-}
-
-document.getElementById('spawnBtn').addEventListener('click', spawnRandomItem);
-document.getElementById('closeItem').addEventListener('click', ()=>{document.getElementById('itemStore').style.display='none'});
-document.getElementById('closeUpgrade').addEventListener('click', ()=>{document.getElementById('upgradeStore').style.display='none'});
-
-/* ======== WORLD DRAWING ======== */
-const bgImage = new Image();
-bgImage.src = 'https://i.ibb.co/MkBQ7kGS/IMG-0206.jpg';
-
+/* spawn item */
 function spawnRandomItem(){
   if(spawnedItem) return;
   const margin = 120;
   const x = Math.random()*(world.width - margin*2)+margin;
   const y = Math.random()*(world.height - margin*2)+margin;
   const idx = Math.floor(Math.random()*ITEM_IMAGES.length);
-  const img = new Image(); img.src=ITEM_IMAGES[idx];
-  spawnedItem = { x,y,img,id:Date.now() };
-  showTargetThumb(img.src);
+  spawnedItem = { x, y, img: ITEM_IMAGES[idx], id: Date.now() };
+  showTargetThumb(spawnedItem.img);
 }
 
-/* ======== ACTION BAR ======== */
-function renderActionBar(){
-  const bar = document.getElementById('actionBar');
-  bar.innerHTML='';
-  if(state.has.locator){
-    const btn = document.createElement('div'); btn.className='actionBtn';
-    btn.textContent='Locate'; btn.addEventListener('click', ()=>{
-      if(!spawnedItem) return alert('No item!');
-      arrowActiveUntil = Date.now() + 3000 + state.upgrades.locator*1000;
-    });
-    bar.appendChild(btn);
-  }
-  if(state.has.teleport){
-    const btn = document.createElement('div'); btn.className='actionBtn';
-    btn.textContent='Teleport'; btn.addEventListener('click', ()=>{
-      if(!spawnedItem) return alert('No item!');
-      player.x=spawnedItem.x; player.y=spawnedItem.y;
-    });
-    bar.appendChild(btn);
-  }
+/* show/hide thumbnail */
+function showTargetThumb(url){
+  targetImg.src = url;
+  targetText.textContent = '';
+  targetThumb.style.visibility = 'visible';
+}
+function hideTargetThumb(){
+  targetThumb.style.visibility = 'hidden';
 }
 
-/* ======== DRAW LOOP ======== */
+/* distance */
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+/* draw / loop */
+let lastTime = performance.now();
+let arrowActiveUntil = 0;
+function loop(ts){
+  const dt = ts - lastTime; lastTime = ts;
+
+  // movement
+  let vx = 0, vy = 0;
+  if(keys["ArrowUp"]||keys["w"]) vy -= 1;
+  if(keys["ArrowDown"]||keys["s"]) vy += 1;
+  if(keys["ArrowLeft"]||keys["a"]) vx -= 1;
+  if(keys["ArrowRight"]||keys["d"]) vx += 1;
+  if(joy.active){ vx += joy.x; vy += joy.y; }
+  if(vx!==0 || vy!==0){
+    const mag = Math.hypot(vx, vy) || 1;
+    vx = vx/mag; vy = vy/mag;
+    player.x += vx * player.speed * (dt/16);
+    player.y += vy * player.speed * (dt/16);
+  }
+
+  // clamp player
+  player.x = Math.max(20, Math.min(world.width-20, player.x));
+  player.y = Math.max(20, Math.min(world.height-20, player.y));
+
+  // spawn logic
+  if(performance.now() - lastSpawn > SPAWN_MS){
+    spawnRandomItem();
+    lastSpawn = performance.now();
+  }
+
+  // pickup
+  if(spawnedItem && dist(player, spawnedItem) < 36){
+    state.candy += 5;
+    spawnedItem = null;
+    hideTargetThumb();
+    updateScore();
+    renderActionBar();
+  }
+
+  // open modal if near store (no auto-open now; we show prompt on canvas)
+  // update cooldown display
+  renderActionBar();
+
+  draw();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* draw world */
 function draw(){
   const c = cam();
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.save();
-  ctx.translate(-c.x,-c.y);
+  ctx.translate(-c.x, -c.y);
 
-  if(bgImage.complete) ctx.drawImage(bgImage,0,0,world.width,world.height);
-  else{ ctx.fillStyle='#23431b'; ctx.fillRect(0,0,world.width,world.height); }
+  // background
+  ctx.fillStyle = "#23431b";
+  ctx.fillRect(0,0,world.width, world.height);
 
   // grid
-  ctx.strokeStyle='rgba(0,0,0,0.12)'; for(let gx=0;gx<world.width;gx+=120){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,world.height);ctx.stroke();}
-  for(let gy=0;gy<world.height;gy+=120){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(world.width,gy);ctx.stroke();}
+  ctx.strokeStyle = "rgba(0,0,0,0.12)";
+  for(let gx=0; gx<world.width; gx+=120){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,world.height); ctx.stroke(); }
+  for(let gy=0; gy<world.height; gy+=120){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(world.width,gy); ctx.stroke(); }
 
   // stores
-  ctx.fillStyle="#f5e6a0"; ctx.fillRect(itemStorePos.x-32,itemStorePos.y-32,64,64);
-  ctx.fillStyle="#222"; ctx.font="bold 14px sans-serif"; ctx.fillText("ITEM", itemStorePos.x-18, itemStorePos.y+6);
-  ctx.fillStyle="#f5e6a0"; ctx.fillRect(upgradeStorePos.x-32,upgradeStorePos.y-32,64,64);
-  ctx.fillStyle="#222"; ctx.fillText("UPG", upgradeStorePos.x-14,upgradeStorePos.y+6);
+  ctx.fillStyle = "#f5e6a0"; ctx.fillRect(itemStorePos.x-32, itemStorePos.y-32, 64,64);
+  ctx.fillStyle = "#222"; ctx.font = "bold 14px sans-serif"; ctx.fillText("ITEM", itemStorePos.x-18, itemStorePos.y + 6);
+  ctx.fillStyle = "#f5e6a0"; ctx.fillRect(upgradeStorePos.x-32, upgradeStorePos.y-32,64,64);
+  ctx.fillStyle = "#222"; ctx.fillText("UPG", upgradeStorePos.x-14, upgradeStorePos.y +6);
 
-  // spawned item with orange background
-  if(spawnedItem && spawnedItem.img.complete){
-    const iw=44, ih=44;
-    ctx.fillStyle="orange";
-    ctx.fillRect(spawnedItem.x-iw/2-4,spawnedItem.y-ih/2-4,iw+8,ih+8);
-    ctx.drawImage(spawnedItem.img,spawnedItem.x-iw/2,spawnedItem.y-ih/2,iw,ih);
+  // spawned item
+  if(spawnedItem){
+    const iw = 44, ih = 44;
+    const im = new Image(); im.src = spawnedItem.img;
+    ctx.drawImage(im, spawnedItem.x - iw/2, spawnedItem.y - ih/2, iw, ih);
   }
 
-  // player
+  // arrow if locator active
+  if(Date.now() < arrowActiveUntil && spawnedItem){
+    const px = player.x, py = player.y - 30;
+    const bx = spawnedItem.x, by = spawnedItem.y;
+    ctx.strokeStyle = "rgba(255,255,0,0.95)"; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(bx,by); ctx.stroke();
+    const ang = Math.atan2(by-py, bx-px);
+    ctx.fillStyle = "yellow";
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx - 14*Math.cos(ang-Math.PI/6), by - 14*Math.sin(ang-Math.PI/6));
+    ctx.lineTo(bx - 14*Math.cos(ang+Math.PI/6), by - 14*Math.sin(ang+Math.PI/6)); ctx.closePath(); ctx.fill();
+  }
+
+  // player (avatar)
   if(player.img && player.img.complete){
-    ctx.drawImage(player.img, player.x-player.w/2, player.y-player.h/2, player.w, player.h);
-  }else{
-    ctx.fillStyle='orange'; ctx.beginPath(); ctx.arc(player.x,player.y,24,0,Math.PI*2); ctx.fill();
+    ctx.drawImage(player.img, player.x - player.w/2, player.y - player.h/2, player.w, player.h);
+  } else {
+    ctx.fillStyle = "orange"; ctx.beginPath(); ctx.arc(player.x, player.y, 24, 0, Math.PI*2); ctx.fill();
+  }
+
+  // store proximity help (draw near player)
+  if(dist(player, itemStorePos) < 80){
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(player.x+20, player.y-62, 180,36);
+    ctx.fillStyle = "#fff"; ctx.font="14px sans-serif"; ctx.fillText("Press 'E' or tap store to open Item Store", player.x+28, player.y-42);
+  } else if(dist(player, upgradeStorePos) < 80){
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(player.x+20, player.y-62, 200,36);
+    ctx.fillStyle = "#fff"; ctx.font="14px sans-serif"; ctx.fillText("Press 'E' or tap store to open Upgrade Store", player.x+28, player.y-42);
   }
 
   ctx.restore();
+
+  // top HUD drawn by DOM; nothing else here
 }
 
-/* ======== GAME LOOP ======== */
-function loop(){
-  // move
-  let vx=0,vy=0;
-  if(keys['w']||keys['ArrowUp']) vy-=1;
-  if(keys['s']||keys['ArrowDown']) vy+=1;
-  if(keys['a']||keys['ArrowLeft']) vx-=1;
-  if(keys['d']||keys['ArrowRight']) vx+=1;
-  if(joy.active){ vx+=joy.x/20; vy+=joy.y/20; }
-  const sp=player.speed; const mag=Math.hypot(vx,vy);
-  if(mag>0){ player.x+=vx/mag*sp; player.y+=vy/mag*sp; }
-  player.x=Math.max(0,Math.min(world.width,player.x));
-  player.y=Math.max(0,Math.min(world.height,player.y));
+/* ---------- UI helpers ---------- */
+function updateScore(){ scoreEl.textContent = state.candy; }
 
-  draw(); requestAnimationFrame(loop);
+/* action bar rendering */
+function renderActionBar(){
+  actionBar.innerHTML = '';
+  // Locator button if purchased
+  if(state.has.locator){
+    const node = document.createElement('div'); node.className = 'actionBtn'; node.id = 'act_locator';
+    node.style.position='relative';
+    node.innerHTML = `<img src="https://i.ibb.co/bgmg3RpW/IMG-0240.png" style="width:34px;height:34px"><div style="font-weight:700">Locator</div>`;
+    const cdLeft = Math.max(0, Math.floor((state.cooldowns.locatorReady - Date.now())/1000));
+    if(cdLeft > 0){
+      const overlay = document.createElement('div'); overlay.className = 'cooldownOverlay'; overlay.textContent = cdLeft + 's';
+      node.appendChild(overlay);
+      node.classList.add('disabled');
+    }
+    node.addEventListener('click', ()=> { tryUseLocator(); });
+    actionBar.appendChild(node);
+  }
+  // Teleport
+  if(state.has.teleport){
+    const node = document.createElement('div'); node.className = 'actionBtn'; node.id = 'act_tp';
+    node.style.position='relative';
+    node.innerHTML = `<img src="https://freesvg.org/img/teleport.png" style="width:34px;height:34px"><div style="font-weight:700">Teleport</div>`;
+    const cdLeft = Math.max(0, Math.floor((state.cooldowns.teleportReady - Date.now())/1000));
+    if(cdLeft > 0){ const overlay = document.createElement('div'); overlay.className='cooldownOverlay'; overlay.textContent = cdLeft + 's'; node.appendChild(overlay); node.classList.add('disabled'); }
+    node.addEventListener('click', ()=> { tryUseTeleport(); });
+    actionBar.appendChild(node);
+  }
 }
-loop();
+
+/* try-use wrappers with helpful messages */
+function tryUseLocator(){
+  if(!state.has.locator){ flash('You must buy Locator'); return; }
+  if(!spawnedItem){ flash('No active item'); return; }
+  if(state.cooldowns.locatorReady > Date.now()){ flash('Locator cooling'); return; }
+  const p = locatorParams(state.upgrades.locator);
+  arrowActiveUntil = Date.now() + p.dur*1000;
+  state.cooldowns.locatorReady = Date.now() + p.cd*1000;
+  renderActionBar();
+}
+
+function tryUseTeleport(){
+  if(!state.has.teleport){ flash('You must buy Teleporter'); return; }
+  if(!spawnedItem){ flash('No active item'); return; }
+  if(state.cooldowns.teleportReady > Date.now()){ flash('Teleporter cooling'); return; }
+  // teleport to item
+  player.x = spawnedItem.x; player.y = spawnedItem.y;
+  // set cooldown based on upgrades
+  const cd = teleportCDFor(state.upgrades.teleport);
+  state.cooldowns.teleportReady = Date.now() + cd*1000;
+  renderActionBar();
+}
+
+/* flash message */
+function flash(t){
+  const d = document.createElement('div');
+  d.style.position='fixed'; d.style.left='50%'; d.style.top='60%'; d.style.transform='translate(-50%,-50%)';
+  d.style.background='rgba(0,0,0,0.7)'; d.style.color='white'; d.style.padding='10px 14px'; d.style.borderRadius='10px'; d.style.zIndex='9999'; d.style.fontWeight='700';
+  d.textContent = t;
+  document.body.appendChild(d);
+  setTimeout(()=> d.remove(), 1100);
+}
+
+/* spawn button */
+spawnBtn.addEventListener('click', ()=> { player.x = CENTER.x; player.y = CENTER.y; });
+
+/* ---------- stores: open/close & buy logic ---------- */
+const itemStore = document.getElementById('itemStore');
+const upgradeStore = document.getElementById('upgradeStore');
+document.getElementById('closeItem').addEventListener('click', ()=> closeModal(itemStore));
+document.getElementById('closeUpgrade').addEventListener('click', ()=> closeModal(upgradeStore));
+
+function closeModal(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); }
+
+/* buy item buttons */
+document.getElementById('buyLocator').addEventListener('click', ()=>{
+  const cost = 5;
+  if(state.has.locator){ flash('Already owned'); return; }
+  if(state.candy < cost){ flash('Not enough candy'); return; }
+  state.candy -= cost; state.has.locator = true; updateScore(); renderActionBar(); updateStoreUI();
+});
+document.getElementById('buyTeleport').addEventListener('click', ()=>{
+  const cost = 20;
+  if(state.has.teleport){ flash('Already owned'); return; }
+  if(state.candy < cost){ flash('Not enough candy'); return; }
+  state.candy -= cost; state.has.teleport = true; updateScore(); renderActionBar(); updateStoreUI();
+});
+
+/* upgrades (sequential enforcement) */
+function updateStoreUI(){
+  // item buys
+  document.getElementById('buyLocator').disabled = state.has.locator || state.candy < 5;
+  document.getElementById('buyTeleport').disabled = state.has.teleport || state.candy < 20;
+
+  // locator upgrades: upg1 can be bought if base item owned & not already bought; upg2 only if upg1 bought; upg3 only if upg2 bought
+  for(let t=1;t<=3;t++){
+    const btn = document.getElementById('upgLoc' + t);
+    const cost = 8;
+    const canBuy = state.has.locator && state.upgrades.locator === t-1 && state.candy >= cost;
+    btn.disabled = !canBuy;
+    btn.textContent = (state.upgrades.locator >= t) ? (t===3 ? 'MAX' : 'Owned') : 'Buy';
+    if(state.upgrades.locator >= t) btn.disabled = true;
+  }
+  // teleport upgrades same sequential
+  for(let t=1;t<=3;t++){
+    const btn = document.getElementById('upgTp' + t);
+    const cost = 8;
+    const canBuy = state.has.teleport && state.upgrades.teleport === t-1 && state.candy >= cost;
+    btn.disabled = !canBuy;
+    btn.textContent = (state.upgrades.teleport >= t) ? (t===3 ? 'MAX' : 'Owned') : 'Buy';
+    if(state.upgrades.teleport >= t) btn.disabled = true;
+  }
+}
+
+/* upgrade click handlers */
+document.getElementById('upgLoc1').addEventListener('click', ()=> buyUpgrade('locator',1));
+document.getElementById('upgLoc2').addEventListener('click', ()=> buyUpgrade('locator',2));
+document.getElementById('upgLoc3').addEventListener('click', ()=> buyUpgrade('locator',3));
+document.getElementById('upgTp1').addEventListener('click', ()=> buyUpgrade('teleport',1));
+document.getElementById('upgTp2').addEventListener('click', ()=> buyUpgrade('teleport',2));
+document.getElementById('upgTp3').addEventListener('click', ()=> buyUpgrade('teleport',3));
+
+function buyUpgrade(type, tier){
+  const cost = 8;
+  // require base item
+  if(type === 'locator' && !state.has.locator){ flash('Buy Locator first'); return; }
+  if(type === 'teleport' && !state.has.teleport){ flash('Buy Teleport first'); return; }
+  // require sequential: you can only buy tier t if current level === t-1
+  const cur = state.upgrades[type];
+  if(cur !== tier-1){ flash('Buy previous upgrade first'); return; }
+  if(state.candy < cost){ flash('Not enough candy'); return; }
+  // purchase
+  state.candy -= cost;
+  state.upgrades[type] = tier;
+  updateScore();
+  updateStoreUI();
+  renderActionBar();
+  flash(type === 'locator' ? `Locator upgraded to ${tier}` : `Teleport upgraded to ${tier}`);
+}
+
+/* open stores by proximity or clicking store icons on canvas */
+window.addEventListener('keydown', (e)=> { if(e.key.toLowerCase()==='e') { tryOpenNearbyStore(); } });
+function tryOpenNearbyStore(){
+  if(dist(player, itemStorePos) < 80){ openModal(itemStore); }
+  else if(dist(player, upgradeStorePos) < 80){ openModal(upgradeStore); }
+}
+function openModal(m){ m.style.display='block'; m.setAttribute('aria-hidden','false'); updateStoreUI(); }
+
+/* allow clicking / tapping store icons on canvas (pointer coords -> world coords) */
+canvas.addEventListener('pointerdown', (ev)=>{
+  const camera = cam();
+  const wx = ev.clientX + camera.x;
+  const wy = ev.clientY + camera.y;
+  if(Math.abs(wx - itemStorePos.x) < 40 && Math.abs(wy - itemStorePos.y) < 40){ openModal(itemStore); return; }
+  if(Math.abs(wx - upgradeStorePos.x) < 40 && Math.abs(wy - upgradeStorePos.y) < 40){ openModal(upgradeStore); return; }
+});
+
+/* locator & teleport use via action bar are wired in renderActionBar() -> tryUseLocator / tryUseTeleport */
+
+/* Keep UI updated regularly */
+setInterval(()=> {
+  // thumbnail update
+  if(spawnedItem){ targetImg.src = spawnedItem.img; targetThumb.style.visibility='visible'; }
+  else targetThumb.style.visibility='hidden';
+  // cooldown enforcement cleaning
+  renderActionBar();
+  updateScore();
+  updateStoreUI();
+}, 300);
+
+/* spawn timing */
+setInterval(()=> {
+  if(!spawnedItem) spawnRandomItem();
+}, 1500);
+
+/* helper: avoid using localStorage -> everything resets on reload */
+
+/* small helper for showing quick text */
+function quick(msg){ flash(msg); }
+
+/* initial UI render */
+updateScore();
+renderActionBar();
+updateStoreUI();
+
+/* Expose certain functions for debugging on console (optional) */
+window._state = state;
+window._spawn = spawnRandomItem;
+
 </script>
 </body>
 </html>
